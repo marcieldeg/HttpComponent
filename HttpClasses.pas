@@ -6,20 +6,11 @@ uses
   Classes, SysUtils, Generics.Collections;
 
 type
-  THeader = class
-  private
-    FName: String;
-    FValue: String;
-  public
-    constructor Create(AName, AValue: String);
-    property Name: String read FName;
-    property Value: String read FValue;
-  end;
-
-  THeaders = class(TObjectList<THeader>)
+  THeaders = class(TStringList)
   private
     procedure FromRawString(AStringHeaders: String);
   public
+    constructor Create;
     procedure AddHeader(AName, AValue: String);
     function GetAll(AName: String): TStrings;
     function GetFirst(AName: String): String;
@@ -100,23 +91,96 @@ type
     property PartCount: Integer read GetPartCount;
   end;
 
+  THttpStatus = (
+    // --- 1xx Informational ---
+    SC_CONTINUE = 100, //
+    SC_SWITCHING_PROTOCOLS = 101, //
+    SC_PROCESSING = 102, //
+    SC_EARLY_HINTS = 103, //
+
+    // --- 2xx Success ---
+    SC_OK = 200, //
+    SC_CREATED = 201, //
+    SC_ACCEPTED = 202, //
+    SC_NON_AUTHORITATIVE_INFORMATION = 203, //
+    SC_NO_CONTENT = 204, //
+    SC_RESET_CONTENT = 205, //
+    SC_PARTIAL_CONTENT = 206, //
+    SC_MULTI_STATUS = 207, //
+    SC_IM_USED = 226, //
+
+    // --- 3xx Redirection ---
+    SC_MULTIPLE_CHOICES = 300, //
+    SC_MOVED_PERMANENTLY = 301, //
+    SC_MOVED_TEMPORARILY = 302, //
+    SC_SEE_OTHER = 303, //
+    SC_NOT_MODIFIED = 304, //
+    SC_USE_PROXY = 305, //
+    SC_TEMPORARY_REDIRECT = 307, //
+    SC_PERMANENT_REDIRECT = 308, //
+
+    // --- 4xx Client Error ---
+    SC_BAD_REQUEST = 400, //
+    SC_UNAUTHORIZED = 401, //
+    SC_PAYMENT_REQUIRED = 402, //
+    SC_FORBIDDEN = 403, //
+    SC_NOT_FOUND = 404, //
+    SC_METHOD_NOT_ALLOWED = 405, //
+    SC_NOT_ACCEPTABLE = 406, //
+    SC_PROXY_AUTHENTICATION_REQUIRED = 407, //
+    SC_REQUEST_TIMEOUT = 408, //
+    SC_CONFLICT = 409, //
+    SC_GONE = 410, //
+    SC_LENGTH_REQUIRED = 411, //
+    SC_PRECONDITION_FAILED = 412, //
+    SC_REQUEST_TOO_LONG = 413, //
+    SC_REQUEST_URI_TOO_LONG = 414, //
+    SC_UNSUPPORTED_MEDIA_TYPE = 415, //
+    SC_REQUESTED_RANGE_NOT_SATISFIABLE = 416, //
+    SC_EXPECTATION_FAILED = 417, //
+    SC_IM_A_TEAPOT = 418, //
+    SC_INSUFFICIENT_SPACE_ON_RESOURCE = 419, //
+    SC_METHOD_FAILURE = 420, //
+    SC_MISDIRECT_REQUEST = 421, //
+    SC_UNPROCESSABLE_ENTITY = 422, //
+    SC_LOCKED = 423, //
+    SC_FAILED_DEPENDENCY = 424, //
+    SC_TOO_EARLY = 425, //
+    SC_UPGRADE_REQUIRED = 426, //
+    SC_PRECONDITION_REQUIRED = 428, //
+    SC_TOO_MANY_REQUESTS = 429, //
+    SC_REQUEST_HEADER_FIELDS_TOO_LARGE = 431, //
+    SC_UNAVAILABLE_FOR_LEGAL_REASONS = 451, //
+
+    // --- 5xx Server Error ---
+    SC_INTERNAL_SERVER_ERROR = 500, //
+    SC_NOT_IMPLEMENTED = 501, //
+    SC_BAD_GATEWAY = 502, //
+    SC_SERVICE_UNAVAILABLE = 503, //
+    SC_GATEWAY_TIMEOUT = 504, //
+    SC_HTTP_VERSION_NOT_SUPPORTED = 505, //
+    SC_INSUFFICIENT_STORAGE = 507, //
+    SC_LOOP_DETECTED = 508, //
+    SC_NOT_EXTENDED = 510, //
+    SC_NETWORK_AUTHENTICATION_REQUIRED = 511);
+
   THttpResponse = class(TComponent)
   private
-    FStatusCode: Cardinal;
+    FStatusCode: THttpStatus;
     FHeaders: THeaders;
     FData: TBytes;
-    function GetContentLenght: Integer;
+    function GetContentLength: Integer;
     function GetContentType: String;
     function GetContentAsString: String;
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
     procedure SaveToFile(AFileName: String);
-    property StatusCode: Cardinal read FStatusCode;
+    property StatusCode: THttpStatus read FStatusCode;
     property Content: TBytes read FData;
     property ContentAsString: String read GetContentAsString;
     property ContentType: String read GetContentType;
-    property ContentLenght: Integer read GetContentLenght;
+    property ContentLength: Integer read GetContentLength;
     property Headers: THeaders read FHeaders;
   end;
 
@@ -132,6 +196,8 @@ type
 
   THttpVersion = (hv1_0, hv1_1);
 
+  THttpOnProgress = procedure(Sender: TObject; ABytesRead, ABytesTotal: Integer) of object;
+
   THttpRequest = class(TComponent)
   private
     FUserAgent: String;
@@ -141,6 +207,10 @@ type
     FSecurityOptions: TSecurityOptions;
     FResponse: THttpResponse;
     FHttpVersion: THttpVersion;
+    FUsername: String;
+    FPassword: String;
+    FAutoRedirect: Boolean;
+    FOnProgress: THttpOnProgress;
     procedure SetUseCookies(AValue: Boolean);
     function Request(AMethod, AUrl: String; ABody: TBody): Boolean;
   public
@@ -167,9 +237,13 @@ type
   published
     property Headers: THeaders read FHeaders write FHeaders;
     property UseCookies: Boolean read FUseCookies write SetUseCookies default False;
+    property AutoRedirect: Boolean read FAutoRedirect write FAutoRedirect default True;
     property SecurityOptions: TSecurityOptions read FSecurityOptions write FSecurityOptions;
     property UserAgent: String read FUserAgent write FUserAgent;
     property HttpVersion: THttpVersion read FHttpVersion write FHttpVersion default hv1_1;
+    property Username: String read FUsername write FUsername;
+    property Password: String read FPassword write FPassword;
+    property OnProgress: THttpOnProgress read FOnProgress write FOnProgress;
   end;
 
   TIPVersion = (ivIP4, ivIP6);
@@ -185,7 +259,7 @@ type
     FPath: string;
     FHost: string;
     FBookmark: string;
-    FUserName: string;
+    FUsername: string;
     FPassword: string;
     FParams: string;
     FIPVersion: TIPVersion;
@@ -206,7 +280,7 @@ type
     property Port: Integer read FPort write FPort;
     property Protocol: String read FProtocol write SetProtocol;
     property URI: String read GetURI write SetURI;
-    property Username: String read FUserName write FUserName;
+    property Username: String read FUsername write FUsername;
     property IPVersion: TIPVersion read FIPVersion write FIPVersion;
   end;
 
@@ -222,20 +296,19 @@ begin
   Classes.RegisterComponents('HttpClient', [THttpRequest]);
 end;
 
-{THeader}
-
-constructor THeader.Create(AName, AValue: String);
-begin
-  inherited Create;
-  FName := AName;
-  FValue := AValue;
-end;
-
 {THeaders}
 
 procedure THeaders.AddHeader(AName, AValue: String);
 begin
-  Add(THeader.Create(AName, AValue));
+  Values[AName] := AValue;
+end;
+
+constructor THeaders.Create;
+begin
+  inherited;
+  Delimiter := #10;
+  NameValueSeparator := ':';
+  StrictDelimiter := True;
 end;
 
 procedure THeaders.FromRawString(AStringHeaders: String);
@@ -245,10 +318,10 @@ var
 begin
   with TStringList.Create do
     try
-      Delimiter := #10;
+      Delimiter := #$D;
       NameValueSeparator := ':';
       StrictDelimiter := True;
-      DelimitedText := AStringHeaders;
+      DelimitedText := StringReplace(AStringHeaders, #$D#$A, #$D, [rfReplaceAll]);
       for i := 0 to Count - 1 do
       begin
         Name := Trim(Names[i]);
@@ -263,35 +336,30 @@ end;
 
 function THeaders.GetAll(AName: String): TStrings;
 var
-  Header: THeader;
+  i: Integer;
 begin
   Result := TStringList.Create;
 
-  for Header in Self do
-    if Header.Name = AName then
-      Result.Add(Header.Value);
+  for i := 0 to Count - 1 do
+    if Names[i] = AName then
+      Result.Add(ValueFromIndex[i]);
 end;
 
 function THeaders.GetFirst(AName: String): String;
 var
-  Header: THeader;
+  i: Integer;
 begin
-  for Header in Self do
-    if Header.Name = AName then
+  for i := 0 to Count - 1 do
+    if Names[i] = AName then
     begin
-      Result := Header.Value;
+      Result := ValueFromIndex[i];
       Exit;
     end;
 end;
 
 function THeaders.ToString: String;
-var
-  Header: THeader;
 begin
-  Result := '';
-  for Header in Self do
-    Result := Result + Header.Name + ': ' + Header.Value + sLineBreak;
-  Result := Trim(Result);
+  Result := DelimitedText;
 end;
 
 {TBody}
@@ -514,9 +582,9 @@ begin
   Result := TEncoding.ASCII.GetString(FData);
 end;
 
-function THttpResponse.GetContentLenght: Integer;
+function THttpResponse.GetContentLength: Integer;
 begin
-  Result := StrToIntDef(FHeaders.GetFirst('Content-Lenght'), -1);
+  Result := StrToIntDef(FHeaders.GetFirst('Content-Length'), -1);
 end;
 
 function THttpResponse.GetContentType: String;
@@ -543,6 +611,7 @@ begin
   FCookies := TCookies.Create;
   FHttpVersion := hv1_1;
   FUserAgent := 'Mozilla/5.0 (compatible, HttpClient)';
+  FAutoRedirect := True;
 end;
 
 function THttpRequest.Delete(AUrl: String; ABody: TBody): Boolean;
@@ -609,7 +678,9 @@ var
   hInet: HINTERNET;
   hConnect: HINTERNET;
   hRequest: HINTERNET;
+  lpdwBuffer: Cardinal;
   lpdwBufferLength: Cardinal;
+  lpdwBufferReaded: Cardinal;
   lpdwReserved: Cardinal;
   IdURI: THttpURI;
   lpdwNumberOfBytesAvailable: Cardinal;
@@ -618,9 +689,12 @@ var
   Headers: PChar;
   Body: TMemoryStream;
   Cookie: String;
-  dwFlags, dwBuffLen: Cardinal;
+  SecurityFlags, dwBuffLen: Cardinal;
   SecurityOption: TSecurityOption;
   TmpHead: TStringBuilder;
+  InternetService: Cardinal;
+  OpenRequestFlags: Cardinal;
+  ContentLength: Cardinal;
 const
   HTTP_VERSION: array [THttpVersion] of PChar = ('HTTP/1.0', 'HTTP/1.1');
 
@@ -633,54 +707,65 @@ begin
 
   IdURI := THttpURI.Create(AUrl);
   try
-    hConnect := InternetConnect(hInet, PChar(IdURI.Host), IdURI.Port, nil, nil, INTERNET_SERVICE_HTTP, 0, 0);
+    if SameText(IdURI.Protocol, 'FTP') then
+      InternetService := INTERNET_SERVICE_FTP
+    else
+      InternetService := INTERNET_SERVICE_HTTP;
+    hConnect := InternetConnect(hInet, PChar(IdURI.Host), IdURI.Port, PChar(FUsername), PChar(FPassword),
+      InternetService, 0, 0);
     try
-      hRequest := HttpOpenRequest(hConnect, PChar(AMethod), PChar(IdURI.GetPathAndParams), HTTP_VERSION[FHttpVersion],
-        '', nil, INTERNET_FLAG_SECURE, 0);
+      OpenRequestFlags := INTERNET_FLAG_SECURE;
+      if not FUseCookies then
+        OpenRequestFlags := OpenRequestFlags or INTERNET_FLAG_NO_COOKIES;
+      if not FAutoRedirect then
+        OpenRequestFlags := OpenRequestFlags or INTERNET_FLAG_NO_AUTO_REDIRECT;
 
-      dwBuffLen := SizeOf(dwFlags);
+      hRequest := HttpOpenRequest(hConnect, PChar(AMethod), PChar(IdURI.GetPathAndParams), HTTP_VERSION[FHttpVersion],
+        '', nil, OpenRequestFlags, 0);
+
+      dwBuffLen := SizeOf(SecurityFlags);
       if FSecurityOptions <> [] then
-        if InternetQueryOption(hRequest, INTERNET_OPTION_SECURITY_FLAGS, @dwFlags, dwBuffLen) then
+        if InternetQueryOption(hRequest, INTERNET_OPTION_SECURITY_FLAGS, @SecurityFlags, dwBuffLen) then
         begin
-          dwFlags := 0;
+          SecurityFlags := 0;
           for SecurityOption in FSecurityOptions do
             case SecurityOption of
               soSecure:
-                dwFlags := dwFlags or SECURITY_FLAG_SECURE;
+                SecurityFlags := SecurityFlags or SECURITY_FLAG_SECURE;
               soSsl:
-                dwFlags := dwFlags or SECURITY_FLAG_SSL;
+                SecurityFlags := SecurityFlags or SECURITY_FLAG_SSL;
               soSsl3:
-                dwFlags := dwFlags or SECURITY_FLAG_SSL3;
+                SecurityFlags := SecurityFlags or SECURITY_FLAG_SSL3;
               soPct:
-                dwFlags := dwFlags or SECURITY_FLAG_PCT;
+                SecurityFlags := SecurityFlags or SECURITY_FLAG_PCT;
               soPct4:
-                dwFlags := dwFlags or SECURITY_FLAG_PCT4;
+                SecurityFlags := SecurityFlags or SECURITY_FLAG_PCT4;
               soIetfssl4:
-                dwFlags := dwFlags or SECURITY_FLAG_IETFSSL4;
+                SecurityFlags := SecurityFlags or SECURITY_FLAG_IETFSSL4;
               so40bit:
-                dwFlags := dwFlags or SECURITY_FLAG_40BIT;
+                SecurityFlags := SecurityFlags or SECURITY_FLAG_40BIT;
               so128bit:
-                dwFlags := dwFlags or SECURITY_FLAG_128BIT;
+                SecurityFlags := SecurityFlags or SECURITY_FLAG_128BIT;
               so56bit:
-                dwFlags := dwFlags or SECURITY_FLAG_56BIT;
+                SecurityFlags := SecurityFlags or SECURITY_FLAG_56BIT;
               soUnknownbit:
-                dwFlags := dwFlags or SECURITY_FLAG_UNKNOWNBIT;
+                SecurityFlags := SecurityFlags or SECURITY_FLAG_UNKNOWNBIT;
               soIgnoreRevication:
-                dwFlags := dwFlags or SECURITY_FLAG_IGNORE_REVOCATION;
+                SecurityFlags := SecurityFlags or SECURITY_FLAG_IGNORE_REVOCATION;
               soIgnoreUnknownCA:
-                dwFlags := dwFlags or SECURITY_FLAG_IGNORE_UNKNOWN_CA;
+                SecurityFlags := SecurityFlags or SECURITY_FLAG_IGNORE_UNKNOWN_CA;
               soIgnoreWrongUsage:
-                dwFlags := dwFlags or SECURITY_FLAG_IGNORE_WRONG_USAGE;
+                SecurityFlags := SecurityFlags or SECURITY_FLAG_IGNORE_WRONG_USAGE;
               soIgnoreCertCNInvalid:
-                dwFlags := dwFlags or SECURITY_FLAG_IGNORE_CERT_CN_INVALID;
+                SecurityFlags := SecurityFlags or SECURITY_FLAG_IGNORE_CERT_CN_INVALID;
               soIgnoreCertDateInvalid:
-                dwFlags := dwFlags or SECURITY_FLAG_IGNORE_CERT_DATE_INVALID;
+                SecurityFlags := SecurityFlags or SECURITY_FLAG_IGNORE_CERT_DATE_INVALID;
               soIgnoreRedirectHttps:
-                dwFlags := dwFlags or SECURITY_FLAG_IGNORE_REDIRECT_TO_HTTPS;
+                SecurityFlags := SecurityFlags or SECURITY_FLAG_IGNORE_REDIRECT_TO_HTTPS;
               soIgnoreRedirectHttp:
-                dwFlags := dwFlags or SECURITY_FLAG_IGNORE_REDIRECT_TO_HTTP;
+                SecurityFlags := SecurityFlags or SECURITY_FLAG_IGNORE_REDIRECT_TO_HTTP;
             end;
-          InternetSetOption(hRequest, INTERNET_OPTION_SECURITY_FLAGS, @dwFlags, SizeOf(dwFlags));
+          InternetSetOption(hRequest, INTERNET_OPTION_SECURITY_FLAGS, @SecurityFlags, SizeOf(SecurityFlags));
         end
         else
           raise Exception.Create(GetErrorDescription(GetLastError));
@@ -708,7 +793,6 @@ begin
 
         Headers := PChar(TmpHead.ToString);
 
-        MessageBox(0, Headers, 'Headers', 0);
         try
           if not HttpSendRequest(hRequest, Headers, Length(Headers), Body.Memory, Body.Size) then
             raise Exception.Create(GetErrorDescription(GetLastError));
@@ -721,11 +805,13 @@ begin
 
         lpdwReserved := 0;
 
-        lpdwBufferLength := SizeOf(FResponse.FStatusCode);
-        HttpQueryInfo(hRequest, HTTP_QUERY_STATUS_CODE or HTTP_QUERY_FLAG_NUMBER, @FResponse.FStatusCode,
+        lpdwBufferLength := SizeOf(lpdwBuffer);
+        HttpQueryInfo(hRequest, HTTP_QUERY_STATUS_CODE or HTTP_QUERY_FLAG_NUMBER, @lpdwBuffer,
           lpdwBufferLength, lpdwReserved);
 
-        Result := FResponse.FStatusCode = 200;
+        Result := (Integer(lpdwBuffer) >= 200) and (Integer(lpdwBuffer) < 300);
+
+        FResponse.FStatusCode := THttpStatus(lpdwBuffer);
 
         lpdwBufferLength := 2048;
         Headers := StrAlloc(lpdwBufferLength);
@@ -736,12 +822,25 @@ begin
           StrDispose(Headers);
         end;
 
-        repeat
-          InternetQueryDataAvailable(hRequest, lpdwNumberOfBytesAvailable, 0, 0);
+        ContentLength := FResponse.GetContentLength;
+
+        if Assigned(FOnProgress) then
+          FOnProgress(Self, 0, ContentLength);
+
+        InternetQueryDataAvailable(hRequest, lpdwNumberOfBytesAvailable, 0, 0);
+        lpdwBufferReaded := 0;
+        while lpdwNumberOfBytesAvailable > 0 do
+        begin
           SetLength(Response, lpdwNumberOfBytesAvailable);
           InternetReadFile(hRequest, @Response[0], lpdwNumberOfBytesAvailable, dwBytesRead);
           FResponse.FData := AppendBytes(FResponse.FData, Response);
-        until dwBytesRead >= lpdwNumberOfBytesAvailable;
+          if Assigned(FOnProgress) then
+          begin
+            lpdwBufferReaded := lpdwBufferReaded + dwBytesRead;
+            FOnProgress(Self, lpdwBufferReaded, ContentLength);
+          end;
+          InternetQueryDataAvailable(hRequest, lpdwNumberOfBytesAvailable, 0, 0);
+        end;
 
         if FUseCookies then
           for Cookie in FResponse.FHeaders.GetAll('Set-Cookie') do
@@ -862,7 +961,7 @@ begin
   FDocument := '';
   FPort := 0;
   FBookmark := '';
-  FUserName := '';
+  FUsername := '';
   FPassword := '';
   FParams := '';
   FIPVersion := ivIP4;
@@ -884,8 +983,8 @@ begin
     begin
       FPassword := Copy(LBuffer, 1, LTokenPos - 1);
       Delete(LBuffer, 1, LTokenPos);
-      FUserName := Fetch(FPassword, ':');
-      if Length(FUserName) = 0 then
+      FUsername := Fetch(FPassword, ':');
+      if Length(FUsername) = 0 then
       begin
         FPassword := '';
       end;
@@ -953,9 +1052,9 @@ begin
 
   LURI := FProtocol + '://';
 
-  if (FUserName <> '') and (ofAuthInfo in AOptionalFields) then
+  if (FUsername <> '') and (ofAuthInfo in AOptionalFields) then
   begin
-    LURI := LURI + FUserName;
+    LURI := LURI + FUsername;
     if FPassword <> '' then
     begin
       LURI := LURI + ':' + FPassword;

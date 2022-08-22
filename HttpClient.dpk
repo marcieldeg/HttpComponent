@@ -28,11 +28,17 @@ requires
   rtl,
   IndyCore,
   IndySystem,
-  IndyProtocols;
+  IndyProtocols,
+  DesignIDE,
+  dbrtl,
+  dsnap,
+  vcldb;
 
 contains
   HttpClasses in 'HttpClasses.pas',
-  HttpUtils in 'HttpUtils.pas';
+  HttpUtils in 'HttpUtils.pas',
+  PropertyEditors in 'PropertyEditors.pas',
+  UfrmHeadersEditor in 'UfrmHeadersEditor.pas' {FHeadersEditor};
 
 end.
 
