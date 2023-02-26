@@ -76,7 +76,7 @@ type
   TMultipartFormBody = class(TBody)
   private
     FBoundary: String;
-    FParts: TList<TPart>;
+    FParts: TObjectList<TPart>;
     function GetStream: TMemoryStream; override;
     function GetPart(AIndex: Integer): TPart;
     function GetPartCount: Integer;
@@ -806,8 +806,8 @@ begin
         lpdwReserved := 0;
 
         lpdwBufferLength := SizeOf(lpdwBuffer);
-        HttpQueryInfo(hRequest, HTTP_QUERY_STATUS_CODE or HTTP_QUERY_FLAG_NUMBER, @lpdwBuffer,
-          lpdwBufferLength, lpdwReserved);
+        HttpQueryInfo(hRequest, HTTP_QUERY_STATUS_CODE or HTTP_QUERY_FLAG_NUMBER, @lpdwBuffer, lpdwBufferLength,
+          lpdwReserved);
 
         Result := (Integer(lpdwBuffer) >= 200) and (Integer(lpdwBuffer) < 300);
 
