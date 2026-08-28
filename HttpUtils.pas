@@ -6,6 +6,7 @@ uses
   Classes, SysUtils;
 
 function PathEncode(const ASrc: String): String;
+function UrlEncode(const AValue: String): String;
 function RPos(const ASub, AIn: String; AStart: Integer = -1): Integer;
 function Fetch(var AInput: String; const ADelim: String): String;
 function GetErrorDescription(AErrorCode: Integer): String;
@@ -18,7 +19,7 @@ function GetMimeType(const AMemory: Pointer; const ASize: Integer): String;
 implementation
 
 uses
-  Windows, WinInet, UrlMon;
+  Windows, WinInet, UrlMon, ActiveX;
 
 function PathEncode(const ASrc: String): String;
 const
@@ -40,6 +41,31 @@ begin
       Result := Result + ASrc[i];
       Inc(i);
     end;
+  end;
+end;
+
+function UrlEncode(const AValue: String): String;
+const
+  UnreservedChars = ['A' .. 'Z', 'a' .. 'z', '0' .. '9', '-', '_', '.', '~'];
+var
+  Bytes: TBytes;
+  i: Integer;
+  b: Byte;
+begin
+  // application/x-www-form-urlencoded: RFC 1866 / WHATWG URL - each
+  // name/value pair must be encoded individually, spaces become '+' and
+  // any byte outside the unreserved set is percent-encoded.
+  Result := '';
+  Bytes := TEncoding.UTF8.GetBytes(AValue);
+  for i := 0 to Length(Bytes) - 1 do
+  begin
+    b := Bytes[i];
+    if (b < 128) and CharInSet(Chr(b), UnreservedChars) then
+      Result := Result + Chr(b)
+    else if b = Ord(' ') then
+      Result := Result + '+'
+    else
+      Result := Result + '%' + IntToHex(b, 2);
   end;
 end;
 
@@ -325,9 +351,9 @@ end;
 function AppendBytes(ABytes1, ABytes2: TBytes): TBytes;
 begin
   SetLength(Result, Length(ABytes1) + Length(ABytes2));
-  if ABytes1 <> nil then
+  if Length(ABytes1) > 0 then
     Move(ABytes1[0], Result[0], Length(ABytes1));
-  if ABytes2 <> nil then
+  if Length(ABytes2) > 0 then
     Move(ABytes2[0], Result[Length(ABytes1)], Length(ABytes2));
 end;
 
@@ -337,7 +363,6 @@ var
 const
   Chars = '0123456789abcdef';
 begin
-  RandSeed := Trunc(Now * SecsPerDay * 1000.0);
   Result := '';
   for i := 1 to 20 do
     Result := Result + Chars[Random(16) + 1];
@@ -345,7 +370,8 @@ end;
 
 procedure WriteBytes(const AStream: TStream; const ABytes: TBytes);
 begin
-  AStream.Write(ABytes[0], Length(ABytes));
+  if Length(ABytes) > 0 then
+    AStream.Write(ABytes[0], Length(ABytes));
 end;
 
 procedure WriteString(const AStream: TStream; const AString: string; const AEncoding: TEncoding);
@@ -353,7 +379,7 @@ var
   LBytes: TBytes;
 begin
   if AEncoding = nil then
-    LBytes := TEncoding.ASCII.GetBytes(AString)
+    LBytes := TEncoding.UTF8.GetBytes(AString)
   else
     LBytes := AEncoding.GetBytes(AString);
   WriteBytes(AStream, LBytes);
@@ -363,8 +389,20 @@ function GetMimeType(const AMemory: Pointer; const ASize: Integer): String;
 var
   Mimetype: PChar;
 begin
-  FindMimeFromData(nil, nil, AMemory, ASize, nil, 0, Mimetype, 0);
-  Result := String(Mimetype);
+  Mimetype := nil;
+  try
+    if FindMimeFromData(nil, nil, AMemory, ASize, nil, 0, Mimetype, 0) = S_OK then
+      Result := String(Mimetype)
+    else
+      Result := 'application/octet-stream';
+  finally
+    if Mimetype <> nil then
+      CoTaskMemFree(Mimetype);
+  end;
 end;
+
+initialization
+
+Randomize;
 
 end.

@@ -1,7 +1,7 @@
 ﻿	<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
 		<PropertyGroup>
-			<ProjectGuid>{5A10D83B-3CE0-4F8E-8FF9-8F3B6C5158D3}</ProjectGuid>
-			<MainSource>HttpClient.dpk</MainSource>
+			<ProjectGuid>{6B21E94C-4DF1-4A9A-9B0A-9E4C1B2D7F11}</ProjectGuid>
+			<MainSource>HttpClientRT.dpk</MainSource>
 			<ProjectVersion>12.0</ProjectVersion>
 			<Config Condition="'$(Config)'==''">Debug</Config>
 			<DCC_DCCCompiler>DCC32</DCC_DCCCompiler>
@@ -21,7 +21,7 @@
 		</PropertyGroup>
 		<PropertyGroup Condition="'$(Base)'!=''">
 			<DCC_UnitAlias>WinTypes=Windows;WinProcs=Windows;DbiTypes=BDE;DbiProcs=BDE;DbiErrs=BDE;$(DCC_UnitAlias)</DCC_UnitAlias>
-			<DCC_DependencyCheckOutputName>C:\Users\Public\Documents\RAD Studio\7.0\Bpl\HttpClient.bpl</DCC_DependencyCheckOutputName>
+			<DCC_DependencyCheckOutputName>C:\Users\Public\Documents\RAD Studio\7.0\Bpl\HttpClientRT.bpl</DCC_DependencyCheckOutputName>
 			<GenPackage>true</GenPackage>
 			<DCC_K>false</DCC_K>
 			<DCC_F>false</DCC_F>
@@ -42,20 +42,12 @@
 			<DCC_Define>DEBUG;$(DCC_Define)</DCC_Define>
 		</PropertyGroup>
 		<ItemGroup>
-			<DelphiCompile Include="HttpClient.dpk">
+			<DelphiCompile Include="HttpClientRT.dpk">
 				<MainSource>MainSource</MainSource>
 			</DelphiCompile>
 			<DCCReference Include="rtl.dcp"/>
-			<DCCReference Include="HttpClientRT.dcp"/>
-			<DCCReference Include="DesignIDE.dcp"/>
-			<DCCReference Include="dbrtl.dcp"/>
-			<DCCReference Include="dsnap.dcp"/>
-			<DCCReference Include="vcldb.dcp"/>
-			<DCCReference Include="PropertyEditors.pas"/>
-			<DCCReference Include="UfrmHeadersEditor.pas">
-				<Form>FHeadersEditor</Form>
-			</DCCReference>
-			<None Include="HttpClientRT.dpk"/>
+			<DCCReference Include="HttpClasses.pas"/>
+			<DCCReference Include="HttpUtils.pas"/>
 			<BuildConfiguration Include="Base">
 				<Key>Base</Key>
 			</BuildConfiguration>
@@ -75,7 +67,7 @@
 			<BorlandProject>
 				<Delphi.Personality>
 					<Source>
-						<Source Name="MainSource">HttpClient.dpk</Source>
+						<Source Name="MainSource">HttpClientRT.dpk</Source>
 					</Source>
 					<Parameters>
 						<Parameters Name="UseLauncher">False</Parameters>

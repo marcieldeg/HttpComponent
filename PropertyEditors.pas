@@ -27,11 +27,20 @@ end;
 
 {THeadersProperty}
 
+// Object-typed properties are exposed by the IDE's property inspector as an
+// ordinal (the object reference reinterpreted as an integer/pointer-sized
+// value). This is the standard, documented way TClassProperty descendants
+// read/write object properties in the Delphi 2010 design-time API; there is
+// no safer alternative available in that IDE version. GetOrdValue never
+// returns nil here because THttpRequest.Headers is always assigned in its
+// constructor, but the check below keeps this method defensive regardless.
 procedure THeadersProperty.Edit;
 var
   Headers: THeaders;
 begin
   Headers := THeaders(Pointer(GetOrdValue));
+  if not Assigned(Headers) then
+    Exit;
   with TFHeadersEditor.Create(Application) do
     try
       LoadHeaders(Headers);

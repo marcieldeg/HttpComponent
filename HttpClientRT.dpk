@@ -1,4 +1,4 @@
-package HttpClient;
+package HttpClientRT;
 
 {$R *.res}
 {$ALIGN 8}
@@ -25,18 +25,10 @@ package HttpClient;
 {$IMPLICITBUILD ON}
 
 requires
-  rtl,
-  HttpClientRT,
-  DesignIDE,
-  dbrtl,
-  dsnap,
-  vcldb;
+  rtl;
 
 contains
-  PropertyEditors in 'PropertyEditors.pas',
-  UfrmHeadersEditor in 'UfrmHeadersEditor.pas' {FHeadersEditor};
+  HttpClasses in 'HttpClasses.pas',
+  HttpUtils in 'HttpUtils.pas';
 
 end.
-
-
-

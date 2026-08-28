@@ -19,9 +19,8 @@ type
     Button1: TButton;
     procedure Button1Click(Sender: TObject);
   private
-    {Private declarations}
+    procedure ClearHeaders;
   public
-    {Public declarations}
     procedure LoadHeaders(AHeaders: THeaders);
     procedure SaveHeaders(AHeaders: THeaders);
   end;
@@ -36,25 +35,37 @@ implementation
 
 procedure TFHeadersEditor.Button1Click(Sender: TObject);
 begin
+  ClearHeaders;
+end;
+
+procedure TFHeadersEditor.ClearHeaders;
+begin
   ClientDataSet.Close;
   ClientDataSet.CreateDataSet;
 end;
 
 procedure TFHeadersEditor.LoadHeaders(AHeaders: THeaders);
 var
-  i: Integer;
+  HeaderIndex: Integer;
 begin
-  for i := 0 to AHeaders.Count - 1 do
-    ClientDataSet.InsertRecord([AHeaders.Names[i], AHeaders.ValueFromIndex[i]]);
+  ClearHeaders;
+  for HeaderIndex := 0 to AHeaders.Count - 1 do
+    ClientDataSet.InsertRecord([AHeaders.Names[HeaderIndex], AHeaders.ValueFromIndex[HeaderIndex]]);
 end;
 
 procedure TFHeadersEditor.SaveHeaders(AHeaders: THeaders);
+var
+  HeaderName: String;
+  HeaderValue: String;
 begin
   AHeaders.Clear;
   ClientDataSet.First;
   while not ClientDataSet.Eof do
   begin
-    AHeaders.AddHeader(ClientDataSet.FieldByName('NAME').Text, ClientDataSet.FieldByName('VALUE').Text);
+    HeaderName := ClientDataSetNAME.AsString;
+    HeaderValue := ClientDataSetVALUE.AsString;
+    if HeaderName <> '' then
+      AHeaders.AddHeader(HeaderName, HeaderValue);
     ClientDataSet.Next;
   end;
 end;

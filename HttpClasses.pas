@@ -3,7 +3,7 @@ unit HttpClasses;
 interface
 
 uses
-  Classes, SysUtils, Generics.Collections;
+  Classes, SysUtils, Generics.Collections, WinInet;
 
 type
   THeaders = class(TStringList)
@@ -44,7 +44,7 @@ type
 
   TStringBody = class(TBytesBody)
   public
-    constructor Create(AData: String; AContentType: String = 'text/plain'); reintroduce; overload;
+    constructor Create(AData: String; AContentType: String = 'text/plain; charset=utf-8'); reintroduce; overload;
     constructor Create(AData: UTF8String; AContentType: String = 'text/plain; charset=utf-8'); reintroduce; overload;
   end;
 
@@ -166,17 +166,19 @@ type
 
   THttpResponse = class(TComponent)
   private
-    FStatusCode: THttpStatus;
+    FStatusCode: Integer;
     FHeaders: THeaders;
     FData: TBytes;
     function GetContentLength: Integer;
     function GetContentType: String;
     function GetContentAsString: String;
+    function GetEncodingForCharset: TEncoding;
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
+    procedure Clear;
     procedure SaveToFile(AFileName: String);
-    property StatusCode: THttpStatus read FStatusCode;
+    property StatusCode: Integer read FStatusCode;
     property Content: TBytes read FData;
     property ContentAsString: String read GetContentAsString;
     property ContentType: String read GetContentType;
@@ -184,8 +186,38 @@ type
     property Headers: THeaders read FHeaders;
   end;
 
-  // reserved for future implementation
-  TCookies = class(TStringList)
+  TCookie = class
+  private
+    FName: String;
+    FValue: String;
+    FDomain: String;
+    FPath: String;
+    FExpires: TDateTime;
+    FHasExpires: Boolean;
+    FHostOnly: Boolean;
+    function GetDefaultPath(const ARequestPath: String): String;
+    function TryParseExpires(const AValue: String; out AExpires: TDateTime): Boolean;
+  public
+    constructor Create(const ASetCookie, ADefaultDomain, ADefaultPath: String);
+    function IsExpired: Boolean;
+    function Matches(const AHost, APath: String): Boolean;
+    function ToRequestValue: String;
+    property Name: String read FName;
+    property Value: String read FValue;
+    property Domain: String read FDomain;
+    property Path: String read FPath;
+    property Expires: TDateTime read FExpires;
+    property HasExpires: Boolean read FHasExpires;
+    property HostOnly: Boolean read FHostOnly;
+  end;
+
+  TCookies = class(TObjectList<TCookie>)
+  private
+    procedure RemoveExpired;
+  public
+    constructor Create;
+    procedure AddFromSetCookie(const ASetCookie, ADefaultDomain, ADefaultPath: String);
+    function ToRequestHeaders(const AHost, APath: String): String;
   end;
 
   TSecurityOption = (soSecure, soSsl, soSsl3, soPct, soPct4, soIetfssl4, so40bit, so128bit, so56bit, soUnknownbit,
@@ -197,6 +229,30 @@ type
   THttpVersion = (hv1_0, hv1_1);
 
   THttpOnProgress = procedure(Sender: TObject; ABytesRead, ABytesTotal: Integer) of object;
+
+  THttpURI = class;
+
+  THttpTimeouts = class(TPersistent)
+  private
+    FConnectTimeout: Cardinal;
+    FSendTimeout: Cardinal;
+    FReceiveTimeout: Cardinal;
+    FOnChange: TNotifyEvent;
+    procedure SetConnectTimeout(Value: Cardinal);
+    procedure SetSendTimeout(Value: Cardinal);
+    procedure SetReceiveTimeout(Value: Cardinal);
+  protected
+    procedure Changed;
+  public
+    // Construtor para definir os valores default internos da subpropriedade
+    constructor Create;
+    procedure Assign(Source: TPersistent); override;
+  published
+    property ConnectTimeout: Cardinal read FConnectTimeout write SetConnectTimeout default 0;
+    property SendTimeout: Cardinal read FSendTimeout write SetSendTimeout default 0;
+    property ReceiveTimeout: Cardinal read FReceiveTimeout write SetReceiveTimeout default 0;
+    property OnChange: TNotifyEvent read FOnChange write FOnChange;
+  end;
 
   THttpRequest = class(TComponent)
   private
@@ -211,8 +267,18 @@ type
     FPassword: String;
     FAutoRedirect: Boolean;
     FOnProgress: THttpOnProgress;
+    FTimeout: THttpTimeouts;
     procedure SetUseCookies(AValue: Boolean);
     function Request(AMethod, AUrl: String; ABody: TBody): Boolean;
+    function BuildOpenRequestFlags(const AURI: THttpURI): Cardinal;
+    procedure ApplyTimeouts(ARequest: HINTERNET);
+    procedure ApplySecurityFlags(ARequest: HINTERNET);
+    function BuildRequestHeaders(const AURI: THttpURI; ABody: TBody; ABodyStream: TMemoryStream): String;
+    procedure SendRequestToServer(ARequest: HINTERNET; const AHeaders: String; ABodyStream: TMemoryStream);
+    function ReadResponseStatusCode(ARequest: HINTERNET): Integer;
+    function ReadRawHeaders(ARequest: HINTERNET): String;
+    procedure ReadResponseBody(ARequest: HINTERNET);
+    procedure ExtractCookiesFromResponse(const AHost, APath: String);
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
@@ -244,6 +310,7 @@ type
     property Username: String read FUsername write FUsername;
     property Password: String read FPassword write FPassword;
     property OnProgress: THttpOnProgress read FOnProgress write FOnProgress;
+    property Timeout: THttpTimeouts read FTimeout write FTimeout;
   end;
 
   TIPVersion = (ivIP4, ivIP6);
@@ -289,7 +356,7 @@ procedure Register;
 implementation
 
 uses
-  Windows, IOUtils, UrlMon, WinInet, DateUtils, HttpUtils;
+  Windows, IOUtils, UrlMon, DateUtils, HttpUtils;
 
 procedure Register;
 begin
@@ -300,7 +367,7 @@ end;
 
 procedure THeaders.AddHeader(AName, AValue: String);
 begin
-  Values[AName] := AValue;
+  Add(AName + NameValueSeparator + AValue);
 end;
 
 constructor THeaders.Create;
@@ -341,7 +408,7 @@ begin
   Result := TStringList.Create;
 
   for i := 0 to Count - 1 do
-    if Names[i] = AName then
+    if SameText(Names[i], AName) then
       Result.Add(ValueFromIndex[i]);
 end;
 
@@ -349,8 +416,9 @@ function THeaders.GetFirst(AName: String): String;
 var
   i: Integer;
 begin
+  Result := '';
   for i := 0 to Count - 1 do
-    if Names[i] = AName then
+    if SameText(Names[i], AName) then
     begin
       Result := ValueFromIndex[i];
       Exit;
@@ -374,16 +442,24 @@ end;
 
 function TBody.ToString: String;
 var
-  Stream: TStream;
+  Stream: TMemoryStream;
+  Bytes: TBytes;
 begin
   Stream := GetStream;
-  with TStringStream.Create do
-    try
-      CopyFrom(Stream, Stream.Size);
-      Result := DataString;
-    finally
-      Stream.Free;
+  try
+    SetLength(Bytes, Stream.Size);
+    if Stream.Size > 0 then
+    begin
+      Stream.Position := 0;
+      Stream.ReadBuffer(Bytes[0], Stream.Size);
     end;
+    if Assigned(FEncoding) then
+      Result := FEncoding.GetString(Bytes)
+    else
+      Result := TEncoding.Default.GetString(Bytes);
+  finally
+    Stream.Free;
+  end;
 end;
 
 {TBytesBody}
@@ -401,16 +477,18 @@ begin
 end;
 
 constructor TBytesBody.Create(AFileName: String);
+var
+  FileStream: TBytesStream;
 begin
-  with TBytesStream.Create do
-    try
-      LoadFromFile(AFileName);
-      Position := 0;
-      FContentType := GetMimeType(Memory, Size);
-      FData := Copy(Bytes, 0, Size);
-    finally
-      Free;
-    end;
+  FileStream := TBytesStream.Create;
+  try
+    FileStream.LoadFromFile(AFileName);
+    FileStream.Position := 0;
+    inherited Create(GetMimeType(FileStream.Memory, FileStream.Size), True);
+    FData := Copy(FileStream.Bytes, 0, FileStream.Size);
+  finally
+    FileStream.Free;
+  end;
 end;
 
 function TBytesBody.GetStream: TMemoryStream;
@@ -423,13 +501,15 @@ end;
 constructor TStringBody.Create(AData, AContentType: String);
 begin
   inherited Create(AContentType, True);
-  FData := TEncoding.ASCII.GetBytes(AData);
+  FData := TEncoding.UTF8.GetBytes(AData);
+  FEncoding := TEncoding.UTF8;
 end;
 
 constructor TStringBody.Create(AData: UTF8String; AContentType: String);
 begin
   inherited Create(AContentType, True);
   FData := TEncoding.UTF8.GetBytes(String(AData));
+  FEncoding := TEncoding.UTF8;
 end;
 
 {TUrlEncodedFormBody}
@@ -443,9 +523,6 @@ constructor TUrlEncodedFormBody.Create;
 begin
   inherited Create('application/x-www-form-urlencoded', True);
   FParts := TStringList.Create;
-  FParts.Delimiter := '&';
-  FParts.NameValueSeparator := '=';
-  FParts.StrictDelimiter := True;
 end;
 
 destructor TUrlEncodedFormBody.Destroy;
@@ -456,12 +533,19 @@ end;
 
 function TUrlEncodedFormBody.GetStream: TMemoryStream;
 var
-  Body: TBytes;
+  Text: String;
+  i: Integer;
   Stream: TMemoryStream;
 begin
+  Text := '';
+  for i := 0 to FParts.Count - 1 do
+  begin
+    if i > 0 then
+      Text := Text + '&';
+    Text := Text + UrlEncode(FParts.Names[i]) + '=' + UrlEncode(FParts.ValueFromIndex[i]);
+  end;
   Stream := TBytesStream.Create;
-  Body := FEncoding.GetBytes(PathEncode(FParts.DelimitedText));
-  WriteBytes(Stream, Body);
+  WriteString(Stream, Text, FEncoding);
   Result := Stream;
 end;
 
@@ -494,7 +578,7 @@ end;
 
 procedure TMultipartFormBody.Add(AName, AData, AContentType: String);
 begin
-  FParts.Add(TPart.Create(AName, TEncoding.ASCII.GetBytes(AData), AContentType));
+  FParts.Add(TPart.Create(AName, TEncoding.UTF8.GetBytes(AData), AContentType));
 end;
 
 procedure TMultipartFormBody.Add(AName: String; AData: TBytes; AContentType: String);
@@ -577,9 +661,41 @@ begin
   inherited;
 end;
 
+procedure THttpResponse.Clear;
+begin
+  FStatusCode := 0;
+  FHeaders.Clear;
+  SetLength(FData, 0);
+end;
+
+function THttpResponse.GetEncodingForCharset: TEncoding;
+var
+  ContentTypeHeader, Charset: String;
+  CharsetPos: Integer;
+begin
+  Result := TEncoding.UTF8;
+  ContentTypeHeader := LowerCase(GetContentType);
+  CharsetPos := Pos('charset=', ContentTypeHeader);
+  if CharsetPos = 0 then
+    Exit;
+  Charset := Copy(ContentTypeHeader, CharsetPos + Length('charset='), MaxInt);
+  CharsetPos := Pos(';', Charset);
+  if CharsetPos > 0 then
+    Charset := Copy(Charset, 1, CharsetPos - 1);
+  Charset := Trim(Charset);
+  if (Charset = 'utf-8') or (Charset = 'utf8') then
+    Result := TEncoding.UTF8
+  else if (Charset = 'us-ascii') or (Charset = 'ascii') then
+    Result := TEncoding.ASCII
+  else if (Charset = 'iso-8859-1') or (Charset = 'latin1') or (Charset = 'windows-1252') then
+    Result := TEncoding.GetEncoding(1252)
+  else if (Charset = 'utf-16') or (Charset = 'unicode') then
+    Result := TEncoding.Unicode;
+end;
+
 function THttpResponse.GetContentAsString: String;
 begin
-  Result := TEncoding.ASCII.GetString(FData);
+  Result := GetEncodingForCharset.GetString(FData);
 end;
 
 function THttpResponse.GetContentLength: Integer;
@@ -602,6 +718,195 @@ begin
     end;
 end;
 
+{TCookie}
+
+constructor TCookie.Create(const ASetCookie, ADefaultDomain, ADefaultPath: String);
+var
+  Attribute: String;
+  AttributeName: String;
+  AttributeValue: String;
+  CookieData: String;
+begin
+  inherited Create;
+  CookieData := ASetCookie;
+  FName := Trim(Fetch(CookieData, '='));
+  FValue := Trim(Fetch(CookieData, ';'));
+  FDomain := LowerCase(ADefaultDomain);
+  FPath := GetDefaultPath(ADefaultPath);
+  FHostOnly := True;
+
+  while CookieData <> '' do
+  begin
+    Attribute := Trim(Fetch(CookieData, ';'));
+    AttributeName := Trim(Fetch(Attribute, '='));
+    AttributeValue := Trim(Attribute);
+    if SameText(AttributeName, 'Domain') then
+    begin
+      FDomain := LowerCase(AttributeValue);
+      FHostOnly := False;
+    end
+    else if SameText(AttributeName, 'Path') then
+      FPath := AttributeValue
+    else if SameText(AttributeName, 'Expires') then
+      FHasExpires := TryParseExpires(AttributeValue, FExpires);
+  end;
+
+  if (FDomain <> '') and (FDomain[1] = '.') then
+    Delete(FDomain, 1, 1);
+  if (FPath = '') or (FPath[1] <> '/') then
+    FPath := '/';
+end;
+
+function TCookie.GetDefaultPath(const ARequestPath: String): String;
+var
+  PathEnd: Integer;
+  RequestPath: String;
+begin
+  RequestPath := ARequestPath;
+  Fetch(RequestPath, '?');
+  PathEnd := RPos('/', RequestPath);
+  if PathEnd <= 1 then
+    Result := '/'
+  else
+    Result := Copy(RequestPath, 1, PathEnd - 1);
+end;
+
+function TCookie.TryParseExpires(const AValue: String; out AExpires: TDateTime): Boolean;
+const
+  MonthNames: array [1 .. 12] of String = ('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov',
+    'Dec');
+var
+  DateValue: String;
+  Day: Integer;
+  Month: Integer;
+  Year: Integer;
+  Hour: Integer;
+  Minute: Integer;
+  Second: Integer;
+  TimeValue: String;
+  TimePart: String;
+  MonthIndex: Integer;
+  UtcSystemTime: TSystemTime;
+  LocalSystemTime: TSystemTime;
+begin
+  Result := False;
+  DateValue := Trim(AValue);
+  Fetch(DateValue, ',');
+  Day := StrToIntDef(Fetch(DateValue, ' '), 0);
+  TimePart := Fetch(DateValue, ' ');
+  Month := 0;
+  for MonthIndex := Low(MonthNames) to High(MonthNames) do
+    if SameText(TimePart, MonthNames[MonthIndex]) then
+    begin
+      Month := MonthIndex;
+      Break;
+    end;
+  Year := StrToIntDef(Fetch(DateValue, ' '), 0);
+  TimeValue := Fetch(DateValue, ' ');
+  Hour := StrToIntDef(Fetch(TimeValue, ':'), -1);
+  Minute := StrToIntDef(Fetch(TimeValue, ':'), -1);
+  Second := StrToIntDef(TimeValue, -1);
+  if not TryEncodeDateTime(Year, Month, Day, Hour, Minute, Second, 0, AExpires) then
+    Exit;
+
+  DateTimeToSystemTime(AExpires, UtcSystemTime);
+  if SystemTimeToTzSpecificLocalTime(nil, UtcSystemTime, LocalSystemTime) then
+    AExpires := SystemTimeToDateTime(LocalSystemTime);
+  Result := True;
+end;
+
+function TCookie.IsExpired: Boolean;
+begin
+  Result := FHasExpires and (FExpires <= Now);
+end;
+
+function TCookie.Matches(const AHost, APath: String): Boolean;
+var
+  Host: String;
+  RequestPath: String;
+  DomainMatches: Boolean;
+  PathMatches: Boolean;
+begin
+  Host := LowerCase(AHost);
+  RequestPath := APath;
+  if RequestPath = '' then
+    RequestPath := '/';
+
+  if FHostOnly then
+    DomainMatches := SameText(Host, FDomain)
+  else
+    DomainMatches := SameText(Host, FDomain) or ((Length(Host) > Length(FDomain)) and (Copy(Host,
+          Length(Host) - Length(FDomain) + 1, Length(FDomain)) = FDomain) and
+        (Host[Length(Host) - Length(FDomain)] = '.'));
+
+  PathMatches := (FPath = '/') or SameText(RequestPath, FPath);
+  if (not PathMatches) and (Length(RequestPath) > Length(FPath)) then
+    PathMatches := (Copy(RequestPath, 1, Length(FPath)) = FPath) and (RequestPath[Length(FPath) + 1] = '/');
+
+  Result := DomainMatches and PathMatches;
+end;
+
+function TCookie.ToRequestValue: String;
+begin
+  Result := FName + '=' + FValue;
+end;
+
+{TCookies}
+
+procedure TCookies.AddFromSetCookie(const ASetCookie, ADefaultDomain, ADefaultPath: String);
+var
+  Cookie: TCookie;
+  CookieIndex: Integer;
+begin
+  Cookie := TCookie.Create(ASetCookie, ADefaultDomain, ADefaultPath);
+  try
+    if Cookie.Name = '' then
+      Exit;
+
+    for CookieIndex := Count - 1 downto 0 do
+      if SameText(Items[CookieIndex].Name, Cookie.Name) and SameText(Items[CookieIndex].Domain, Cookie.Domain)
+        and SameText(Items[CookieIndex].Path, Cookie.Path) then
+        Delete(CookieIndex);
+
+    if not Cookie.IsExpired then
+    begin
+      Add(Cookie);
+      Cookie := nil;
+    end;
+  finally
+    Cookie.Free;
+  end;
+end;
+
+constructor TCookies.Create;
+begin
+  inherited Create(True);
+end;
+
+procedure TCookies.RemoveExpired;
+var
+  CookieIndex: Integer;
+begin
+  for CookieIndex := Count - 1 downto 0 do
+    if Items[CookieIndex].IsExpired then
+      Delete(CookieIndex);
+end;
+
+function TCookies.ToRequestHeaders(const AHost, APath: String): String;
+var
+  Cookie: TCookie;
+begin
+  RemoveExpired;
+  Result := '';
+  for Cookie in Self do
+    if Cookie.Matches(AHost, APath) then
+    begin
+      if Result <> '' then
+        Result := Result + '; ';
+      Result := Result + Cookie.ToRequestValue;
+    end;
+end;
+
 {THttpRequest}
 
 constructor THttpRequest.Create(AOwner: TComponent);
@@ -609,6 +914,8 @@ begin
   inherited Create(AOwner);
   FHeaders := THeaders.Create;
   FCookies := TCookies.Create;
+  FTimeout := THttpTimeouts.Create;
+  FResponse := THttpResponse.Create(Self);
   FHttpVersion := hv1_1;
   FUserAgent := 'Mozilla/5.0 (compatible, HttpClient)';
   FAutoRedirect := True;
@@ -638,8 +945,10 @@ end;
 
 destructor THttpRequest.Destroy;
 begin
+  FResponse.Free;
   FHeaders.Free;
   FCookies.Free;
+  FTimeout.Free;
   inherited;
 end;
 
@@ -673,180 +982,291 @@ begin
   Result := Request('PUT', AUrl, ABody);
 end;
 
+function THttpRequest.BuildOpenRequestFlags(const AURI: THttpURI): Cardinal;
+begin
+  Result := 0;
+  if SameText(AURI.Protocol, 'HTTPS') then
+    Result := Result or INTERNET_FLAG_SECURE;
+  if not FUseCookies then
+    Result := Result or INTERNET_FLAG_NO_COOKIES;
+  if not FAutoRedirect then
+    Result := Result or INTERNET_FLAG_NO_AUTO_REDIRECT;
+end;
+
+procedure THttpRequest.ApplyTimeouts(ARequest: HINTERNET);
+begin
+  if FTimeout.FConnectTimeout > 0 then
+    InternetSetOption(ARequest, INTERNET_OPTION_CONNECT_TIMEOUT, @FTimeout.FConnectTimeout,
+      SizeOf(FTimeout.ConnectTimeout));
+  if FTimeout.FSendTimeout > 0 then
+    InternetSetOption(ARequest, INTERNET_OPTION_SEND_TIMEOUT, @FTimeout.FSendTimeout, SizeOf(FTimeout.SendTimeout));
+  if FTimeout.FReceiveTimeout > 0 then
+    InternetSetOption(ARequest, INTERNET_OPTION_RECEIVE_TIMEOUT, @FTimeout.FReceiveTimeout,
+      SizeOf(FTimeout.ReceiveTimeout));
+end;
+
+procedure THttpRequest.ApplySecurityFlags(ARequest: HINTERNET);
+var
+  SecurityFlags, dwBuffLen: Cardinal;
+  SecurityOption: TSecurityOption;
+begin
+  if FSecurityOptions = [] then
+    Exit;
+
+  dwBuffLen := SizeOf(SecurityFlags);
+  if not InternetQueryOption(ARequest, INTERNET_OPTION_SECURITY_FLAGS, @SecurityFlags, dwBuffLen) then
+    raise Exception.Create(GetErrorDescription(GetLastError));
+
+  for SecurityOption in FSecurityOptions do
+    case SecurityOption of
+      soSecure:
+        SecurityFlags := SecurityFlags or SECURITY_FLAG_SECURE;
+      soSsl:
+        SecurityFlags := SecurityFlags or SECURITY_FLAG_SSL;
+      soSsl3:
+        SecurityFlags := SecurityFlags or SECURITY_FLAG_SSL3;
+      soPct:
+        SecurityFlags := SecurityFlags or SECURITY_FLAG_PCT;
+      soPct4:
+        SecurityFlags := SecurityFlags or SECURITY_FLAG_PCT4;
+      soIetfssl4:
+        SecurityFlags := SecurityFlags or SECURITY_FLAG_IETFSSL4;
+      so40bit:
+        SecurityFlags := SecurityFlags or SECURITY_FLAG_40BIT;
+      so128bit:
+        SecurityFlags := SecurityFlags or SECURITY_FLAG_128BIT;
+      so56bit:
+        SecurityFlags := SecurityFlags or SECURITY_FLAG_56BIT;
+      soUnknownbit:
+        SecurityFlags := SecurityFlags or SECURITY_FLAG_UNKNOWNBIT;
+      soIgnoreRevication:
+        SecurityFlags := SecurityFlags or SECURITY_FLAG_IGNORE_REVOCATION;
+      soIgnoreUnknownCA:
+        SecurityFlags := SecurityFlags or SECURITY_FLAG_IGNORE_UNKNOWN_CA;
+      soIgnoreWrongUsage:
+        SecurityFlags := SecurityFlags or SECURITY_FLAG_IGNORE_WRONG_USAGE;
+      soIgnoreCertCNInvalid:
+        SecurityFlags := SecurityFlags or SECURITY_FLAG_IGNORE_CERT_CN_INVALID;
+      soIgnoreCertDateInvalid:
+        SecurityFlags := SecurityFlags or SECURITY_FLAG_IGNORE_CERT_DATE_INVALID;
+      soIgnoreRedirectHttps:
+        SecurityFlags := SecurityFlags or SECURITY_FLAG_IGNORE_REDIRECT_TO_HTTPS;
+      soIgnoreRedirectHttp:
+        SecurityFlags := SecurityFlags or SECURITY_FLAG_IGNORE_REDIRECT_TO_HTTP;
+    end;
+
+  if not InternetSetOption(ARequest, INTERNET_OPTION_SECURITY_FLAGS, @SecurityFlags, SizeOf(SecurityFlags)) then
+    raise Exception.Create(GetErrorDescription(GetLastError));
+end;
+
+function THttpRequest.BuildRequestHeaders(const AURI: THttpURI; ABody: TBody; ABodyStream: TMemoryStream): String;
+var
+  TmpHead: TStringBuilder;
+  CookieHeaders: String;
+begin
+  TmpHead := TStringBuilder.Create;
+  try
+    TmpHead.Append('Host: ' + AURI.Host + sLineBreak);
+
+    if FUseCookies then
+    begin
+      CookieHeaders := FCookies.ToRequestHeaders(AURI.Host, AURI.GetPathAndParams);
+      if CookieHeaders <> '' then
+        TmpHead.Append('Cookie: ' + CookieHeaders + sLineBreak);
+    end;
+
+    if Assigned(ABody) then
+    begin
+      TmpHead.Append('Content-Type: ' + ABody.ContentType + sLineBreak);
+      if ABody.FNeedLength then
+        TmpHead.Append('Content-Length: ' + IntToStr(ABodyStream.Size) + sLineBreak);
+    end;
+
+    TmpHead.Append(FHeaders.ToString);
+
+    Result := TmpHead.ToString;
+  finally
+    TmpHead.Free;
+  end;
+end;
+
+procedure THttpRequest.SendRequestToServer(ARequest: HINTERNET; const AHeaders: String; ABodyStream: TMemoryStream);
+begin
+  if not HttpSendRequest(ARequest, PChar(AHeaders), Length(AHeaders), ABodyStream.Memory, ABodyStream.Size) then
+    raise Exception.Create(GetErrorDescription(GetLastError));
+end;
+
+function THttpRequest.ReadResponseStatusCode(ARequest: HINTERNET): Integer;
+var
+  Buffer, BufferLength, Reserved: Cardinal;
+begin
+  BufferLength := SizeOf(Buffer);
+  Reserved := 0;
+  if not HttpQueryInfo(ARequest, HTTP_QUERY_STATUS_CODE or HTTP_QUERY_FLAG_NUMBER, @Buffer, BufferLength, Reserved) then
+    raise Exception.Create(GetErrorDescription(GetLastError));
+  Result := Integer(Buffer);
+end;
+
+function THttpRequest.ReadRawHeaders(ARequest: HINTERNET): String;
+var
+  BufferLength, Reserved: Cardinal;
+  Buffer: PChar;
+begin
+  BufferLength := 2048;
+  Reserved := 0;
+  repeat
+    Buffer := StrAlloc(BufferLength);
+    try
+      if HttpQueryInfo(ARequest, HTTP_QUERY_RAW_HEADERS_CRLF, Buffer, BufferLength, Reserved) then
+      begin
+        Result := Buffer;
+        Exit;
+      end;
+      if GetLastError <> ERROR_INSUFFICIENT_BUFFER then
+        raise Exception.Create(GetErrorDescription(GetLastError));
+    finally
+      StrDispose(Buffer);
+    end;
+  until False;
+end;
+
+procedure THttpRequest.ReadResponseBody(ARequest: HINTERNET);
+var
+  BytesAvailable, BytesRead, TotalRead: Cardinal;
+  Buffer: TBytes;
+  ContentLength: Integer;
+  Stream: TMemoryStream;
+begin
+  ContentLength := FResponse.GetContentLength;
+
+  if Assigned(FOnProgress) then
+    FOnProgress(Self, 0, ContentLength);
+
+  Stream := TMemoryStream.Create;
+  try
+    TotalRead := 0;
+    if not InternetQueryDataAvailable(ARequest, BytesAvailable, 0, 0) then
+      raise Exception.Create(GetErrorDescription(GetLastError));
+
+    while BytesAvailable > 0 do
+    begin
+      SetLength(Buffer, BytesAvailable);
+      if not InternetReadFile(ARequest, @Buffer[0], BytesAvailable, BytesRead) then
+        raise Exception.Create(GetErrorDescription(GetLastError));
+
+      if BytesRead = 0 then
+        Break;
+
+      Stream.WriteBuffer(Buffer[0], BytesRead);
+      TotalRead := TotalRead + BytesRead;
+
+      if Assigned(FOnProgress) then
+        FOnProgress(Self, TotalRead, ContentLength);
+
+      if not InternetQueryDataAvailable(ARequest, BytesAvailable, 0, 0) then
+        raise Exception.Create(GetErrorDescription(GetLastError));
+    end;
+
+    SetLength(FResponse.FData, Stream.Size);
+    if Stream.Size > 0 then
+    begin
+      Stream.Position := 0;
+      Stream.ReadBuffer(FResponse.FData[0], Stream.Size);
+    end;
+  finally
+    Stream.Free;
+  end;
+end;
+
+procedure THttpRequest.ExtractCookiesFromResponse(const AHost, APath: String);
+var
+  SetCookie: String;
+  CookieList: TStrings;
+begin
+  if not FUseCookies then
+    Exit;
+
+  CookieList := FResponse.FHeaders.GetAll('Set-Cookie');
+  try
+    for SetCookie in CookieList do
+      FCookies.AddFromSetCookie(SetCookie, AHost, APath);
+  finally
+    CookieList.Free;
+  end;
+end;
+
 function THttpRequest.Request(AMethod, AUrl: String; ABody: TBody): Boolean;
 var
   hInet: HINTERNET;
   hConnect: HINTERNET;
   hRequest: HINTERNET;
-  lpdwBuffer: Cardinal;
-  lpdwBufferLength: Cardinal;
-  lpdwBufferReaded: Cardinal;
-  lpdwReserved: Cardinal;
   IdURI: THttpURI;
-  lpdwNumberOfBytesAvailable: Cardinal;
-  dwBytesRead: Cardinal;
-  Response: TBytes;
-  Headers: PChar;
-  Body: TMemoryStream;
-  Cookie: String;
-  SecurityFlags, dwBuffLen: Cardinal;
-  SecurityOption: TSecurityOption;
-  TmpHead: TStringBuilder;
+  BodyStream: TMemoryStream;
+  RequestHeaders: String;
+  StatusCode: Integer;
   InternetService: Cardinal;
   OpenRequestFlags: Cardinal;
-  ContentLength: Cardinal;
 const
   HTTP_VERSION: array [THttpVersion] of PChar = ('HTTP/1.0', 'HTTP/1.1');
 
 begin
   Result := False;
 
-  FResponse := THttpResponse.Create(Self);
+  FResponse.Clear;
 
   hInet := InternetOpen(PChar(FUserAgent), INTERNET_OPEN_TYPE_PRECONFIG, nil, nil, 0);
+  if hInet = nil then
+    raise Exception.Create(GetErrorDescription(GetLastError));
 
   IdURI := THttpURI.Create(AUrl);
   try
-    if SameText(IdURI.Protocol, 'FTP') then
-      InternetService := INTERNET_SERVICE_FTP
-    else
-      InternetService := INTERNET_SERVICE_HTTP;
+    if not(SameText(IdURI.Protocol, 'HTTP') or SameText(IdURI.Protocol, 'HTTPS')) then
+      raise Exception.Create('Only HTTP and HTTPS URLs are supported');
+    if IdURI.Host = '' then
+      raise Exception.Create('URL host is empty');
+
+    InternetService := INTERNET_SERVICE_HTTP;
     hConnect := InternetConnect(hInet, PChar(IdURI.Host), IdURI.Port, PChar(FUsername), PChar(FPassword),
       InternetService, 0, 0);
+    if hConnect = nil then
+      raise Exception.Create(GetErrorDescription(GetLastError));
     try
-      OpenRequestFlags := INTERNET_FLAG_SECURE;
-      if not FUseCookies then
-        OpenRequestFlags := OpenRequestFlags or INTERNET_FLAG_NO_COOKIES;
-      if not FAutoRedirect then
-        OpenRequestFlags := OpenRequestFlags or INTERNET_FLAG_NO_AUTO_REDIRECT;
+      OpenRequestFlags := BuildOpenRequestFlags(IdURI);
 
       hRequest := HttpOpenRequest(hConnect, PChar(AMethod), PChar(IdURI.GetPathAndParams), HTTP_VERSION[FHttpVersion],
         '', nil, OpenRequestFlags, 0);
-
-      dwBuffLen := SizeOf(SecurityFlags);
-      if FSecurityOptions <> [] then
-        if InternetQueryOption(hRequest, INTERNET_OPTION_SECURITY_FLAGS, @SecurityFlags, dwBuffLen) then
-        begin
-          SecurityFlags := 0;
-          for SecurityOption in FSecurityOptions do
-            case SecurityOption of
-              soSecure:
-                SecurityFlags := SecurityFlags or SECURITY_FLAG_SECURE;
-              soSsl:
-                SecurityFlags := SecurityFlags or SECURITY_FLAG_SSL;
-              soSsl3:
-                SecurityFlags := SecurityFlags or SECURITY_FLAG_SSL3;
-              soPct:
-                SecurityFlags := SecurityFlags or SECURITY_FLAG_PCT;
-              soPct4:
-                SecurityFlags := SecurityFlags or SECURITY_FLAG_PCT4;
-              soIetfssl4:
-                SecurityFlags := SecurityFlags or SECURITY_FLAG_IETFSSL4;
-              so40bit:
-                SecurityFlags := SecurityFlags or SECURITY_FLAG_40BIT;
-              so128bit:
-                SecurityFlags := SecurityFlags or SECURITY_FLAG_128BIT;
-              so56bit:
-                SecurityFlags := SecurityFlags or SECURITY_FLAG_56BIT;
-              soUnknownbit:
-                SecurityFlags := SecurityFlags or SECURITY_FLAG_UNKNOWNBIT;
-              soIgnoreRevication:
-                SecurityFlags := SecurityFlags or SECURITY_FLAG_IGNORE_REVOCATION;
-              soIgnoreUnknownCA:
-                SecurityFlags := SecurityFlags or SECURITY_FLAG_IGNORE_UNKNOWN_CA;
-              soIgnoreWrongUsage:
-                SecurityFlags := SecurityFlags or SECURITY_FLAG_IGNORE_WRONG_USAGE;
-              soIgnoreCertCNInvalid:
-                SecurityFlags := SecurityFlags or SECURITY_FLAG_IGNORE_CERT_CN_INVALID;
-              soIgnoreCertDateInvalid:
-                SecurityFlags := SecurityFlags or SECURITY_FLAG_IGNORE_CERT_DATE_INVALID;
-              soIgnoreRedirectHttps:
-                SecurityFlags := SecurityFlags or SECURITY_FLAG_IGNORE_REDIRECT_TO_HTTPS;
-              soIgnoreRedirectHttp:
-                SecurityFlags := SecurityFlags or SECURITY_FLAG_IGNORE_REDIRECT_TO_HTTP;
-            end;
-          InternetSetOption(hRequest, INTERNET_OPTION_SECURITY_FLAGS, @SecurityFlags, SizeOf(SecurityFlags));
-        end
-        else
-          raise Exception.Create(GetErrorDescription(GetLastError));
-
-      TmpHead := TStringBuilder.Create;
+      if hRequest = nil then
+        raise Exception.Create(GetErrorDescription(GetLastError));
       try
-        TmpHead.Append('Host: ' + IdURI.Host + sLineBreak);
-
-        if FUseCookies then
-          for Cookie in FCookies do
-            TmpHead.Append('Cookie: ' + Cookie + sLineBreak);
+        ApplyTimeouts(hRequest);
+        ApplySecurityFlags(hRequest);
 
         if Assigned(ABody) then
-        begin
-          Body := ABody.GetStream;
-
-          TmpHead.Append('Content-Type: ' + ABody.ContentType + sLineBreak);
-          if ABody.FNeedLength then
-            TmpHead.Append('Content-Length: ' + IntToStr(Body.Size) + sLineBreak);
-        end
+          BodyStream := ABody.GetStream
         else
-          Body := TMemoryStream.Create;
-
-        TmpHead.Append(FHeaders.ToString);
-
-        Headers := PChar(TmpHead.ToString);
-
+          BodyStream := TMemoryStream.Create;
         try
-          if not HttpSendRequest(hRequest, Headers, Length(Headers), Body.Memory, Body.Size) then
-            raise Exception.Create(GetErrorDescription(GetLastError));
+          RequestHeaders := BuildRequestHeaders(IdURI, ABody, BodyStream);
+          SendRequestToServer(hRequest, RequestHeaders, BodyStream);
         finally
-          Body.Free;
+          BodyStream.Free;
         end;
 
-        if Assigned(ABody) and ABody.FReleaseAfterSend then
-          ABody.Free;
-
-        lpdwReserved := 0;
-
-        lpdwBufferLength := SizeOf(lpdwBuffer);
-        HttpQueryInfo(hRequest, HTTP_QUERY_STATUS_CODE or HTTP_QUERY_FLAG_NUMBER, @lpdwBuffer, lpdwBufferLength,
-          lpdwReserved);
-
-        Result := (Integer(lpdwBuffer) >= 200) and (Integer(lpdwBuffer) < 300);
-
-        FResponse.FStatusCode := THttpStatus(lpdwBuffer);
-
-        lpdwBufferLength := 2048;
-        Headers := StrAlloc(lpdwBufferLength);
-        try
-          HttpQueryInfo(hRequest, HTTP_QUERY_RAW_HEADERS_CRLF, Headers, lpdwBufferLength, lpdwReserved);
-          FResponse.FHeaders.FromRawString(Headers);
-        finally
-          StrDispose(Headers);
-        end;
-
-        ContentLength := FResponse.GetContentLength;
-
-        if Assigned(FOnProgress) then
-          FOnProgress(Self, 0, ContentLength);
-
-        InternetQueryDataAvailable(hRequest, lpdwNumberOfBytesAvailable, 0, 0);
-        lpdwBufferReaded := 0;
-        while lpdwNumberOfBytesAvailable > 0 do
+        if Assigned(ABody) and ABody.ReleaseAfterSend then
         begin
-          SetLength(Response, lpdwNumberOfBytesAvailable);
-          InternetReadFile(hRequest, @Response[0], lpdwNumberOfBytesAvailable, dwBytesRead);
-          FResponse.FData := AppendBytes(FResponse.FData, Response);
-          if Assigned(FOnProgress) then
-          begin
-            lpdwBufferReaded := lpdwBufferReaded + dwBytesRead;
-            FOnProgress(Self, lpdwBufferReaded, ContentLength);
-          end;
-          InternetQueryDataAvailable(hRequest, lpdwNumberOfBytesAvailable, 0, 0);
+          ABody.Free;
         end;
 
-        if FUseCookies then
-          for Cookie in FResponse.FHeaders.GetAll('Set-Cookie') do
-            FCookies.Add(Cookie);
+        StatusCode := ReadResponseStatusCode(hRequest);
+        Result := (StatusCode >= 200) and (StatusCode < 300);
+        FResponse.FStatusCode := StatusCode;
+
+        FResponse.FHeaders.FromRawString(ReadRawHeaders(hRequest));
+
+        ReadResponseBody(hRequest);
+
+        ExtractCookiesFromResponse(IdURI.Host, IdURI.GetPathAndParams);
       finally
-        TmpHead.Free;
         InternetCloseHandle(hRequest);
       end;
     finally
@@ -951,6 +1371,7 @@ var
   LBuffer: String;
   LTokenPos, Port: Integer;
   LURI: String;
+  AuthInfo: String;
 begin
   FURI := Value;
   FURI := StringReplace(FURI, '\', '/', [rfReplaceAll]);
@@ -981,13 +1402,13 @@ begin
     LTokenPos := Pos('@', LBuffer);
     if LTokenPos > 0 then
     begin
-      FPassword := Copy(LBuffer, 1, LTokenPos - 1);
+      AuthInfo := Copy(LBuffer, 1, LTokenPos - 1);
       Delete(LBuffer, 1, LTokenPos);
-      FUsername := Fetch(FPassword, ':');
+      FUsername := Fetch(AuthInfo, ':');
       if Length(FUsername) = 0 then
-      begin
-        FPassword := '';
-      end;
+        FPassword := ''
+      else
+        FPassword := AuthInfo;
     end;
     if (Pos('[', LBuffer) > 0) and (Pos(']', LBuffer) > Pos('[', LBuffer)) then
     begin
@@ -1036,7 +1457,6 @@ end;
 
 function THttpURI.GetURI: String;
 begin
-  FURI := GetFullURI;
   Result := GetFullURI([]);
 end;
 
@@ -1062,7 +1482,10 @@ begin
     LURI := LURI + '@';
   end;
 
-  LURI := LURI + FHost;
+  if FIPVersion = ivIP6 then
+    LURI := LURI + '[' + FHost + ']'
+  else
+    LURI := LURI + FHost;
 
   if FPort <> 0 then
   begin
@@ -1098,6 +1521,62 @@ begin
   Result := FPath + FDocument;
   if FParams <> '' then
     Result := Result + '?' + FParams;
+end;
+
+{THttpTimeouts}
+
+constructor THttpTimeouts.Create;
+begin
+  inherited;
+  FConnectTimeout := 0;
+  FSendTimeout := 0;
+  FReceiveTimeout := 0;
+end;
+
+procedure THttpTimeouts.Assign(Source: TPersistent);
+begin
+  if Source is THttpTimeouts then
+  begin
+    FConnectTimeout := THttpTimeouts(Source).ConnectTimeout;
+    FSendTimeout := THttpTimeouts(Source).SendTimeout;
+    FReceiveTimeout := THttpTimeouts(Source).ReceiveTimeout;
+    Changed;
+  end
+  else
+    inherited Assign(Source);
+end;
+
+procedure THttpTimeouts.Changed;
+begin
+  if Assigned(FOnChange) then
+    FOnChange(Self);
+end;
+
+procedure THttpTimeouts.SetConnectTimeout(Value: Cardinal);
+begin
+  if FConnectTimeout <> Value then
+  begin
+    FConnectTimeout := Value;
+    Changed;
+  end;
+end;
+
+procedure THttpTimeouts.SetReceiveTimeout(Value: Cardinal);
+begin
+  if FReceiveTimeout <> Value then
+  begin
+    FReceiveTimeout := Value;
+    Changed;
+  end;
+end;
+
+procedure THttpTimeouts.SetSendTimeout(Value: Cardinal);
+begin
+  if FSendTimeout <> Value then
+  begin
+    FSendTimeout := Value;
+    Changed;
+  end;
 end;
 
 end.
