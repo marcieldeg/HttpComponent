@@ -4,7 +4,7 @@ Delphi component wrapper for WinInet library. Written in Delphi 2010.
 ## How to use
 
 ### GET
-```
+```pascal
 procedure TForm1.Button1Click(Sender: TObject);
 begin
   if HttpRequest1.Get('https://httpbin.org/get') then
