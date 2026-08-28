@@ -15,7 +15,8 @@ end;
 ```
 ### POST
 Posting a simple text:
-```procedure TForm1.Button1Click(Sender: TObject);
+```pascal
+procedure TForm1.Button1Click(Sender: TObject);
 begin
   if HttpRequest1.Post('https://httpbin.org/put', 'testing a POST') then
     ShowMessage(HttpRequest1.Response.ContentAsString)
@@ -24,7 +25,7 @@ begin
 end;
 ```
 Posting a file with a Multipart form:
-```
+```pascal
 procedure TForm1.Button1Click(Sender: TObject);
 var
   Body: TMultipartFormBody;
@@ -39,7 +40,7 @@ begin
 end;
 ```
 Posting a url encoded form:
-```
+```pascal
 procedure TForm1.Button1Click(Sender: TObject);
 var
   Body: TUrlEncodedFormBody;
