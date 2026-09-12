@@ -268,7 +268,24 @@ type
     FAutoRedirect: Boolean;
     FOnProgress: THttpOnProgress;
     FTimeout: THttpTimeouts;
+    FhInet: HINTERNET;
+    FhConnect: HINTERNET;
+    FSessionUserAgent: String;
+    FConnectHost: String;
+    FConnectPort: Integer;
+    FConnectUser: String;
+    FConnectPassword: String;
+    FLastUrl: String;
     procedure SetUseCookies(AValue: Boolean);
+    procedure SetUserAgent(const AValue: String);
+    procedure SetUsername(const AValue: String);
+    procedure SetPassword(const AValue: String);
+    procedure CloseInternetHandle(var AHandle: HINTERNET);
+    procedure CloseConnect;
+    procedure CloseSession;
+    procedure EnsureSession;
+    procedure EnsureConnect(const AURI: THttpURI);
+    procedure CaptureLastUrl(ARequest: HINTERNET; const AFallback: String);
     function Request(AMethod, AUrl: String; ABody: TBody): Boolean;
     function BuildOpenRequestFlags(const AURI: THttpURI): Cardinal;
     procedure ApplyTimeouts(ARequest: HINTERNET);
@@ -300,15 +317,16 @@ type
     function Trace(AUrl: String): Boolean;
     property Cookies: TCookies read FCookies;
     property Response: THttpResponse read FResponse;
+    property LastUrl: String read FLastUrl;
   published
     property Headers: THeaders read FHeaders write FHeaders;
     property UseCookies: Boolean read FUseCookies write SetUseCookies default False;
     property AutoRedirect: Boolean read FAutoRedirect write FAutoRedirect default True;
     property SecurityOptions: TSecurityOptions read FSecurityOptions write FSecurityOptions;
-    property UserAgent: String read FUserAgent write FUserAgent;
+    property UserAgent: String read FUserAgent write SetUserAgent;
     property HttpVersion: THttpVersion read FHttpVersion write FHttpVersion default hv1_1;
-    property Username: String read FUsername write FUsername;
-    property Password: String read FPassword write FPassword;
+    property Username: String read FUsername write SetUsername;
+    property Password: String read FPassword write SetPassword;
     property OnProgress: THttpOnProgress read FOnProgress write FOnProgress;
     property Timeout: THttpTimeouts read FTimeout write FTimeout;
   end;
@@ -945,6 +963,7 @@ end;
 
 destructor THttpRequest.Destroy;
 begin
+  CloseSession;
   FResponse.Free;
   FHeaders.Free;
   FCookies.Free;
@@ -984,7 +1003,7 @@ end;
 
 function THttpRequest.BuildOpenRequestFlags(const AURI: THttpURI): Cardinal;
 begin
-  Result := 0;
+  Result := INTERNET_FLAG_KEEP_CONNECTION;
   if SameText(AURI.Protocol, 'HTTPS') then
     Result := Result or INTERNET_FLAG_SECURE;
   if not FUseCookies then
@@ -1195,16 +1214,81 @@ begin
   end;
 end;
 
+procedure THttpRequest.CloseInternetHandle(var AHandle: HINTERNET);
+begin
+  if AHandle <> nil then
+  begin
+    InternetCloseHandle(AHandle);
+    AHandle := nil;
+  end;
+end;
+
+procedure THttpRequest.CloseConnect;
+begin
+  CloseInternetHandle(FhConnect);
+  FConnectHost := '';
+  FConnectPort := 0;
+  FConnectUser := '';
+  FConnectPassword := '';
+end;
+
+procedure THttpRequest.CloseSession;
+begin
+  CloseConnect;
+  CloseInternetHandle(FhInet);
+  FSessionUserAgent := '';
+end;
+
+procedure THttpRequest.EnsureSession;
+begin
+  if (FhInet <> nil) and (FSessionUserAgent = FUserAgent) then
+    Exit;
+
+  CloseSession;
+  FhInet := InternetOpen(PChar(FUserAgent), INTERNET_OPEN_TYPE_PRECONFIG, nil, nil, 0);
+  if FhInet = nil then
+    raise Exception.Create(GetErrorDescription(GetLastError));
+  FSessionUserAgent := FUserAgent;
+end;
+
+procedure THttpRequest.EnsureConnect(const AURI: THttpURI);
+begin
+  if (FhConnect <> nil) and SameText(FConnectHost, AURI.Host) and (FConnectPort = AURI.Port) and
+    (FConnectUser = FUsername) and (FConnectPassword = FPassword) then
+    Exit;
+
+  CloseConnect;
+  FhConnect := InternetConnect(FhInet, PChar(AURI.Host), AURI.Port, PChar(FUsername), PChar(FPassword),
+    INTERNET_SERVICE_HTTP, 0, 0);
+  if FhConnect = nil then
+    raise Exception.Create(GetErrorDescription(GetLastError));
+
+  FConnectHost := AURI.Host;
+  FConnectPort := AURI.Port;
+  FConnectUser := FUsername;
+  FConnectPassword := FPassword;
+end;
+
+procedure THttpRequest.CaptureLastUrl(ARequest: HINTERNET; const AFallback: String);
+var
+  Buffer: array [0 .. 2083] of Char;
+  BufferLength: Cardinal;
+begin
+  FillChar(Buffer, SizeOf(Buffer), 0);
+  BufferLength := SizeOf(Buffer);
+  if InternetQueryOption(ARequest, INTERNET_OPTION_URL, @Buffer[0], BufferLength) and (Buffer[0] <> #0) then
+    FLastUrl := PChar(@Buffer[0])
+  else
+    FLastUrl := AFallback;
+end;
+
 function THttpRequest.Request(AMethod, AUrl: String; ABody: TBody): Boolean;
 var
-  hInet: HINTERNET;
-  hConnect: HINTERNET;
   hRequest: HINTERNET;
   IdURI: THttpURI;
   BodyStream: TMemoryStream;
   RequestHeaders: String;
   StatusCode: Integer;
-  InternetService: Cardinal;
   OpenRequestFlags: Cardinal;
 const
   HTTP_VERSION: array [THttpVersion] of PChar = ('HTTP/1.0', 'HTTP/1.1');
@@ -1213,10 +1297,7 @@ begin
   Result := False;
 
   FResponse.Clear;
-
-  hInet := InternetOpen(PChar(FUserAgent), INTERNET_OPEN_TYPE_PRECONFIG, nil, nil, 0);
-  if hInet = nil then
-    raise Exception.Create(GetErrorDescription(GetLastError));
+  FLastUrl := AUrl;
 
   IdURI := THttpURI.Create(AUrl);
   try
@@ -1225,55 +1306,56 @@ begin
     if IdURI.Host = '' then
       raise Exception.Create('URL host is empty');
 
-    InternetService := INTERNET_SERVICE_HTTP;
-    hConnect := InternetConnect(hInet, PChar(IdURI.Host), IdURI.Port, PChar(FUsername), PChar(FPassword),
-      InternetService, 0, 0);
-    if hConnect = nil then
+    EnsureSession;
+    EnsureConnect(IdURI);
+
+    OpenRequestFlags := BuildOpenRequestFlags(IdURI);
+
+    hRequest := HttpOpenRequest(FhConnect, PChar(AMethod), PChar(IdURI.GetPathAndParams), HTTP_VERSION[FHttpVersion],
+      '', nil, OpenRequestFlags, 0);
+    if hRequest = nil then
+    begin
+      CloseConnect;
       raise Exception.Create(GetErrorDescription(GetLastError));
-    try
-      OpenRequestFlags := BuildOpenRequestFlags(IdURI);
-
-      hRequest := HttpOpenRequest(hConnect, PChar(AMethod), PChar(IdURI.GetPathAndParams), HTTP_VERSION[FHttpVersion],
-        '', nil, OpenRequestFlags, 0);
-      if hRequest = nil then
-        raise Exception.Create(GetErrorDescription(GetLastError));
-      try
-        ApplyTimeouts(hRequest);
-        ApplySecurityFlags(hRequest);
-
-        if Assigned(ABody) then
-          BodyStream := ABody.GetStream
-        else
-          BodyStream := TMemoryStream.Create;
-        try
-          RequestHeaders := BuildRequestHeaders(IdURI, ABody, BodyStream);
-          SendRequestToServer(hRequest, RequestHeaders, BodyStream);
-        finally
-          BodyStream.Free;
-        end;
-
-        if Assigned(ABody) and ABody.ReleaseAfterSend then
-        begin
-          ABody.Free;
-        end;
-
-        StatusCode := ReadResponseStatusCode(hRequest);
-        Result := (StatusCode >= 200) and (StatusCode < 300);
-        FResponse.FStatusCode := StatusCode;
-
-        FResponse.FHeaders.FromRawString(ReadRawHeaders(hRequest));
-
-        ReadResponseBody(hRequest);
-
-        ExtractCookiesFromResponse(IdURI.Host, IdURI.GetPathAndParams);
-      finally
-        InternetCloseHandle(hRequest);
-      end;
-    finally
-      InternetCloseHandle(hConnect);
     end;
+    try
+      ApplyTimeouts(hRequest);
+      ApplySecurityFlags(hRequest);
+
+      if Assigned(ABody) then
+        BodyStream := ABody.GetStream
+      else
+        BodyStream := TMemoryStream.Create;
+      try
+        RequestHeaders := BuildRequestHeaders(IdURI, ABody, BodyStream);
+        SendRequestToServer(hRequest, RequestHeaders, BodyStream);
+      finally
+        BodyStream.Free;
+      end;
+
+      if Assigned(ABody) and ABody.ReleaseAfterSend then
+      begin
+        ABody.Free;
+      end;
+
+      StatusCode := ReadResponseStatusCode(hRequest);
+      Result := (StatusCode >= 200) and (StatusCode < 300);
+      FResponse.FStatusCode := StatusCode;
+
+      FResponse.FHeaders.FromRawString(ReadRawHeaders(hRequest));
+
+      ReadResponseBody(hRequest);
+
+      ExtractCookiesFromResponse(IdURI.Host, IdURI.GetPathAndParams);
+      CaptureLastUrl(hRequest, AUrl);
+    except
+      InternetCloseHandle(hRequest);
+      hRequest := nil;
+      CloseConnect;
+      raise;
+    end;
+    InternetCloseHandle(hRequest);
   finally
-    InternetCloseHandle(hInet);
     IdURI.Free;
   end;
 end;
@@ -1283,6 +1365,30 @@ begin
   FUseCookies := AValue;
   if not AValue then
     FCookies.Clear;
+end;
+
+procedure THttpRequest.SetUserAgent(const AValue: String);
+begin
+  if FUserAgent = AValue then
+    Exit;
+  FUserAgent := AValue;
+  CloseSession;
+end;
+
+procedure THttpRequest.SetUsername(const AValue: String);
+begin
+  if FUsername = AValue then
+    Exit;
+  FUsername := AValue;
+  CloseConnect;
+end;
+
+procedure THttpRequest.SetPassword(const AValue: String);
+begin
+  if FPassword = AValue then
+    Exit;
+  FPassword := AValue;
+  CloseConnect;
 end;
 
 function THttpRequest.Patch(AUrl, ABody: String): Boolean;

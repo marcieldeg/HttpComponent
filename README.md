@@ -10,6 +10,14 @@ The component is split into two packages:
 
 Install both packages in the IDE (`HttpClientRT.dpk` first) to get the component on the palette with its custom Headers editor; deploy only `HttpClientRT` with your compiled application.
 
+## Session and keep-alive
+
+`THttpRequest` keeps a WinINet session (`InternetOpen`) and, while the host/port/credentials stay the same, a connection (`InternetConnect`) for the life of the component. Requests set `INTERNET_FLAG_KEEP_CONNECTION` so HTTP/1.1 connections can be reused. Changing `UserAgent` reopens the session; changing `Username` or `Password`, or calling a different host/port, reconnects.
+
+After each completed request, `LastUrl` is the URL WinINet reports for the handle (the target after redirects when `AutoRedirect` is True). If that query fails, `LastUrl` is the URL you passed in.
+
+The component is **not thread-safe**. Use one `THttpRequest` per thread, or serialize all calls from a single thread (typically the VCL main thread).
+
 ## How to use
 
 ### GET
