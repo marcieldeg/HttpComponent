@@ -25,7 +25,8 @@ package HttpClientRT;
 {$IMPLICITBUILD ON}
 
 requires
-  rtl;
+  rtl,
+  soaprtl;
 
 contains
   HttpClasses in 'HttpClasses.pas',

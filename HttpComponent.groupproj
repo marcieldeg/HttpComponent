@@ -1,0 +1,48 @@
+﻿	<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+		<PropertyGroup>
+			<ProjectGuid>{56E7C6EA-AA66-417E-9BE1-BAEB2C3A66B5}</ProjectGuid>
+		</PropertyGroup>
+		<ItemGroup>
+			<Projects Include="HttpClientRT.dproj">
+				<Dependencies/>
+			</Projects>
+			<Projects Include="HttpClient.dproj">
+				<Dependencies/>
+			</Projects>
+		</ItemGroup>
+		<ProjectExtensions>
+			<Borland.Personality>Default.Personality.12</Borland.Personality>
+			<Borland.ProjectType/>
+			<BorlandProject>
+				<Default.Personality/>
+			</BorlandProject>
+		</ProjectExtensions>
+		<Target Name="HttpClientRT">
+			<MSBuild Projects="HttpClientRT.dproj"/>
+		</Target>
+		<Target Name="HttpClientRT:Clean">
+			<MSBuild Targets="Clean" Projects="HttpClientRT.dproj"/>
+		</Target>
+		<Target Name="HttpClientRT:Make">
+			<MSBuild Targets="Make" Projects="HttpClientRT.dproj"/>
+		</Target>
+		<Target Name="HttpClient">
+			<MSBuild Projects="HttpClient.dproj"/>
+		</Target>
+		<Target Name="HttpClient:Clean">
+			<MSBuild Targets="Clean" Projects="HttpClient.dproj"/>
+		</Target>
+		<Target Name="HttpClient:Make">
+			<MSBuild Targets="Make" Projects="HttpClient.dproj"/>
+		</Target>
+		<Target Name="Build">
+			<CallTarget Targets="HttpClientRT;HttpClient"/>
+		</Target>
+		<Target Name="Clean">
+			<CallTarget Targets="HttpClientRT:Clean;HttpClient:Clean"/>
+		</Target>
+		<Target Name="Make">
+			<CallTarget Targets="HttpClientRT:Make;HttpClient:Make"/>
+		</Target>
+		<Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
+	</Project>

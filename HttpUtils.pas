@@ -15,32 +15,33 @@ function RandomHex: String;
 procedure WriteBytes(const AStream: TStream; const ABytes: TBytes);
 procedure WriteString(const AStream: TStream; const AString: String; const AEncoding: TEncoding = nil);
 function GetMimeType(const AMemory: Pointer; const ASize: Integer): String;
+function ParseHttpDate(const AValue: String; out ADateTime: TDateTime): Boolean;
 
 implementation
 
 uses
-  Windows, WinInet, UrlMon, ActiveX;
+  Windows, WinInet, UrlMon, ActiveX, DateUtils;
 
 function PathEncode(const ASrc: String): String;
 const
   UnsafeChars = ['*', '#', '%', '<', '>', '+', ' ', '[', ']'];
 var
+  Bytes: TBytes;
   i: Integer;
+  b: Byte;
 begin
+  // RFC 3986 path segment encoding: unsafe ASCII characters and any byte
+  // outside the ASCII range must be percent-encoded. Non-ASCII input is
+  // first converted to UTF-8 so multi-byte sequences are encoded correctly.
   Result := '';
-  i := 1;
-  while i <= Length(ASrc) do
+  Bytes := TEncoding.UTF8.GetBytes(ASrc);
+  for i := 0 to Length(Bytes) - 1 do
   begin
-    if CharInSet(ASrc[i], UnsafeChars) or (not CharInSet(ASrc[i], [#32 .. #127])) then
-    begin
-      Result := Result + '%' + IntToHex(Ord(ASrc[i]), 2);
-      Inc(i);
-    end
+    b := Bytes[i];
+    if (b < 128) and (not CharInSet(Chr(b), UnsafeChars)) then
+      Result := Result + Chr(b)
     else
-    begin
-      Result := Result + ASrc[i];
-      Inc(i);
-    end;
+      Result := Result + '%' + IntToHex(b, 2);
   end;
 end;
 
@@ -116,6 +117,51 @@ begin
     Result := Copy(AInput, 1, LPos - 1);
     AInput := Copy(AInput, LPos + Length(ADelim), MaxInt);
   end;
+end;
+
+// Parses HTTP-date values (RFC 7231): "Wed, 21 Oct 2015 07:28:00 GMT",
+// "Sunday, 06-Nov-94 08:49:37 GMT" and "Sun Nov  6 08:49:37 1994".
+// Returns the date in UTC (no local-timezone conversion). Used by
+// TCookie.TryParseExpires and by THttpRequest retry (Retry-After header).
+function ParseHttpDate(const AValue: String; out ADateTime: TDateTime): Boolean;
+const
+  MonthNames: array [1 .. 12] of String = ('Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov',
+    'Dec');
+var
+  DateValue: String;
+  Day: Integer;
+  Month: Integer;
+  Year: Integer;
+  Hour: Integer;
+  Minute: Integer;
+  Second: Integer;
+  TimeValue: String;
+  TimePart: String;
+  MonthIndex: Integer;
+begin
+  DateValue := Trim(AValue);
+  // Optional weekday prefix (RFC 1123/822: "Wed, 21 Oct 2015 07:28:00 GMT").
+  // Some servers omit the weekday ("21 Oct 2015 07:28:00 GMT"); handle both.
+  if Pos(',', DateValue) > 0 then
+  begin
+    Fetch(DateValue, ',');
+    DateValue := Trim(DateValue);
+  end;
+  Day := StrToIntDef(Fetch(DateValue, ' '), 0);
+  TimePart := Fetch(DateValue, ' ');
+  Month := 0;
+  for MonthIndex := Low(MonthNames) to High(MonthNames) do
+    if SameText(TimePart, MonthNames[MonthIndex]) then
+    begin
+      Month := MonthIndex;
+      Break;
+    end;
+  Year := StrToIntDef(Fetch(DateValue, ' '), 0);
+  TimeValue := Fetch(DateValue, ' ');
+  Hour := StrToIntDef(Fetch(TimeValue, ':'), -1);
+  Minute := StrToIntDef(Fetch(TimeValue, ':'), -1);
+  Second := StrToIntDef(TimeValue, -1);
+  Result := TryEncodeDateTime(Year, Month, Day, Hour, Minute, Second, 0, ADateTime);
 end;
 
 // from https://docs.microsoft.com/en-us/windows/win32/wininet/wininet-errors

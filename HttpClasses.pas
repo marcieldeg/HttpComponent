@@ -92,76 +92,67 @@ type
   end;
 
   THttpStatus = (
-    // --- 1xx Informational ---
-    SC_CONTINUE = 100, //
-    SC_SWITCHING_PROTOCOLS = 101, //
-    SC_PROCESSING = 102, //
-    SC_EARLY_HINTS = 103, //
-
-    // --- 2xx Success ---
-    SC_OK = 200, //
-    SC_CREATED = 201, //
-    SC_ACCEPTED = 202, //
-    SC_NON_AUTHORITATIVE_INFORMATION = 203, //
-    SC_NO_CONTENT = 204, //
-    SC_RESET_CONTENT = 205, //
-    SC_PARTIAL_CONTENT = 206, //
-    SC_MULTI_STATUS = 207, //
-    SC_IM_USED = 226, //
-
-    // --- 3xx Redirection ---
-    SC_MULTIPLE_CHOICES = 300, //
-    SC_MOVED_PERMANENTLY = 301, //
-    SC_MOVED_TEMPORARILY = 302, //
-    SC_SEE_OTHER = 303, //
-    SC_NOT_MODIFIED = 304, //
-    SC_USE_PROXY = 305, //
-    SC_TEMPORARY_REDIRECT = 307, //
-    SC_PERMANENT_REDIRECT = 308, //
-
-    // --- 4xx Client Error ---
-    SC_BAD_REQUEST = 400, //
-    SC_UNAUTHORIZED = 401, //
-    SC_PAYMENT_REQUIRED = 402, //
-    SC_FORBIDDEN = 403, //
-    SC_NOT_FOUND = 404, //
-    SC_METHOD_NOT_ALLOWED = 405, //
-    SC_NOT_ACCEPTABLE = 406, //
-    SC_PROXY_AUTHENTICATION_REQUIRED = 407, //
-    SC_REQUEST_TIMEOUT = 408, //
-    SC_CONFLICT = 409, //
-    SC_GONE = 410, //
-    SC_LENGTH_REQUIRED = 411, //
-    SC_PRECONDITION_FAILED = 412, //
-    SC_REQUEST_TOO_LONG = 413, //
-    SC_REQUEST_URI_TOO_LONG = 414, //
-    SC_UNSUPPORTED_MEDIA_TYPE = 415, //
-    SC_REQUESTED_RANGE_NOT_SATISFIABLE = 416, //
-    SC_EXPECTATION_FAILED = 417, //
-    SC_IM_A_TEAPOT = 418, //
-    SC_INSUFFICIENT_SPACE_ON_RESOURCE = 419, //
-    SC_METHOD_FAILURE = 420, //
-    SC_MISDIRECT_REQUEST = 421, //
-    SC_UNPROCESSABLE_ENTITY = 422, //
-    SC_LOCKED = 423, //
-    SC_FAILED_DEPENDENCY = 424, //
-    SC_TOO_EARLY = 425, //
-    SC_UPGRADE_REQUIRED = 426, //
-    SC_PRECONDITION_REQUIRED = 428, //
-    SC_TOO_MANY_REQUESTS = 429, //
-    SC_REQUEST_HEADER_FIELDS_TOO_LARGE = 431, //
-    SC_UNAVAILABLE_FOR_LEGAL_REASONS = 451, //
-
-    // --- 5xx Server Error ---
-    SC_INTERNAL_SERVER_ERROR = 500, //
-    SC_NOT_IMPLEMENTED = 501, //
-    SC_BAD_GATEWAY = 502, //
-    SC_SERVICE_UNAVAILABLE = 503, //
-    SC_GATEWAY_TIMEOUT = 504, //
-    SC_HTTP_VERSION_NOT_SUPPORTED = 505, //
-    SC_INSUFFICIENT_STORAGE = 507, //
-    SC_LOOP_DETECTED = 508, //
-    SC_NOT_EXTENDED = 510, //
+    SC_CONTINUE = 100,
+    SC_SWITCHING_PROTOCOLS = 101,
+    SC_PROCESSING = 102,
+    SC_EARLY_HINTS = 103,
+    SC_OK = 200,
+    SC_CREATED = 201,
+    SC_ACCEPTED = 202,
+    SC_NON_AUTHORITATIVE_INFORMATION = 203,
+    SC_NO_CONTENT = 204,
+    SC_RESET_CONTENT = 205,
+    SC_PARTIAL_CONTENT = 206,
+    SC_MULTI_STATUS = 207,
+    SC_IM_USED = 226,
+    SC_MULTIPLE_CHOICES = 300,
+    SC_MOVED_PERMANENTLY = 301,
+    SC_MOVED_TEMPORARILY = 302,
+    SC_SEE_OTHER = 303,
+    SC_NOT_MODIFIED = 304,
+    SC_USE_PROXY = 305,
+    SC_TEMPORARY_REDIRECT = 307,
+    SC_PERMANENT_REDIRECT = 308,
+    SC_BAD_REQUEST = 400,
+    SC_UNAUTHORIZED = 401,
+    SC_PAYMENT_REQUIRED = 402,
+    SC_FORBIDDEN = 403,
+    SC_NOT_FOUND = 404,
+    SC_METHOD_NOT_ALLOWED = 405,
+    SC_NOT_ACCEPTABLE = 406,
+    SC_PROXY_AUTHENTICATION_REQUIRED = 407,
+    SC_REQUEST_TIMEOUT = 408,
+    SC_CONFLICT = 409,
+    SC_GONE = 410,
+    SC_LENGTH_REQUIRED = 411,
+    SC_PRECONDITION_FAILED = 412,
+    SC_REQUEST_TOO_LONG = 413,
+    SC_REQUEST_URI_TOO_LONG = 414,
+    SC_UNSUPPORTED_MEDIA_TYPE = 415,
+    SC_REQUESTED_RANGE_NOT_SATISFIABLE = 416,
+    SC_EXPECTATION_FAILED = 417,
+    SC_IM_A_TEAPOT = 418,
+    SC_INSUFFICIENT_SPACE_ON_RESOURCE = 419,
+    SC_METHOD_FAILURE = 420,
+    SC_MISDIRECT_REQUEST = 421,
+    SC_UNPROCESSABLE_ENTITY = 422,
+    SC_LOCKED = 423,
+    SC_FAILED_DEPENDENCY = 424,
+    SC_TOO_EARLY = 425,
+    SC_UPGRADE_REQUIRED = 426,
+    SC_PRECONDITION_REQUIRED = 428,
+    SC_TOO_MANY_REQUESTS = 429,
+    SC_REQUEST_HEADER_FIELDS_TOO_LARGE = 431,
+    SC_UNAVAILABLE_FOR_LEGAL_REASONS = 451,
+    SC_INTERNAL_SERVER_ERROR = 500,
+    SC_NOT_IMPLEMENTED = 501,
+    SC_BAD_GATEWAY = 502,
+    SC_SERVICE_UNAVAILABLE = 503,
+    SC_GATEWAY_TIMEOUT = 504,
+    SC_HTTP_VERSION_NOT_SUPPORTED = 505,
+    SC_INSUFFICIENT_STORAGE = 507,
+    SC_LOOP_DETECTED = 508,
+    SC_NOT_EXTENDED = 510,
     SC_NETWORK_AUTHENTICATION_REQUIRED = 511);
 
   THttpResponse = class(TComponent)
@@ -178,6 +169,7 @@ type
     destructor Destroy; override;
     procedure Clear;
     procedure SaveToFile(AFileName: String);
+    procedure SaveToStream(AStream: TStream);
     property StatusCode: Integer read FStatusCode;
     property Content: TBytes read FData;
     property ContentAsString: String read GetContentAsString;
@@ -185,6 +177,8 @@ type
     property ContentLength: Integer read GetContentLength;
     property Headers: THeaders read FHeaders;
   end;
+
+  TCookieSameSite = (csNone, csLax, csStrict);
 
   TCookie = class
   private
@@ -195,12 +189,19 @@ type
     FExpires: TDateTime;
     FHasExpires: Boolean;
     FHostOnly: Boolean;
+    FSecure: Boolean;
+    FHttpOnly: Boolean;
+    FSameSite: TCookieSameSite;
+    FMaxAge: Integer;
+    FHasMaxAge: Boolean;
+    FCreatedAt: TDateTime;
     function GetDefaultPath(const ARequestPath: String): String;
     function TryParseExpires(const AValue: String; out AExpires: TDateTime): Boolean;
   public
     constructor Create(const ASetCookie, ADefaultDomain, ADefaultPath: String);
+    procedure AssignFrom(ASource: TCookie);
     function IsExpired: Boolean;
-    function Matches(const AHost, APath: String): Boolean;
+    function Matches(const AHost, APath, AScheme: String): Boolean;
     function ToRequestValue: String;
     property Name: String read FName;
     property Value: String read FValue;
@@ -209,6 +210,12 @@ type
     property Expires: TDateTime read FExpires;
     property HasExpires: Boolean read FHasExpires;
     property HostOnly: Boolean read FHostOnly;
+    property Secure: Boolean read FSecure;
+    property HttpOnly: Boolean read FHttpOnly;
+    property SameSite: TCookieSameSite read FSameSite;
+    property MaxAge: Integer read FMaxAge;
+    property HasMaxAge: Boolean read FHasMaxAge;
+    property CreatedAt: TDateTime read FCreatedAt;
   end;
 
   TCookies = class(TObjectList<TCookie>)
@@ -217,7 +224,8 @@ type
   public
     constructor Create;
     procedure AddFromSetCookie(const ASetCookie, ADefaultDomain, ADefaultPath: String);
-    function ToRequestHeaders(const AHost, APath: String): String;
+    function ToRequestHeaders(const AHost, APath, AScheme: String): String;
+    procedure AssignFrom(ASource: TCookies);
   end;
 
   TSecurityOption = (soSecure, soSsl, soSsl3, soPct, soPct4, soIetfssl4, so40bit, so128bit, so56bit, soUnknownbit,
@@ -229,6 +237,13 @@ type
   THttpVersion = (hv1_0, hv1_1);
 
   THttpOnProgress = procedure(Sender: TObject; ABytesRead, ABytesTotal: Integer) of object;
+
+  THttpOnBeforeRequest = procedure(Sender: TObject; AMethod, AUrl: String) of object;
+  THttpOnAfterResponse = procedure(Sender: TObject) of object;
+
+  THttpProxyMode = (pmSystem, pmDirect, pmExplicit);
+  THttpAuthScheme = (asNone, asBasic, asBearer, asNegotiate);
+  THttpCachePolicy = (cpDefault, cpReload, cpNoStore);
 
   THttpURI = class;
 
@@ -244,7 +259,6 @@ type
   protected
     procedure Changed;
   public
-    // Construtor para definir os valores default internos da subpropriedade
     constructor Create;
     procedure Assign(Source: TPersistent); override;
   published
@@ -271,15 +285,36 @@ type
     FhInet: HINTERNET;
     FhConnect: HINTERNET;
     FSessionUserAgent: String;
+    FSessionProxyMode: THttpProxyMode;
+    FSessionProxyUrl: String;
     FConnectHost: String;
     FConnectPort: Integer;
     FConnectUser: String;
     FConnectPassword: String;
     FLastUrl: String;
+    FMaxRetries: Integer;
+    FAbortRequested: Boolean;
+    FhRequestActive: HINTERNET;
+    FOnBeforeRequest: THttpOnBeforeRequest;
+    FOnAfterResponse: THttpOnAfterResponse;
+    FMaxContentLength: Int64;
+    FAcceptCompressed: Boolean;
+    FProxyMode: THttpProxyMode;
+    FProxyUrl: String;
+    FAuthScheme: THttpAuthScheme;
+    FAuthToken: String;
+    FMaxRedirects: Integer;
+    FCachePolicy: THttpCachePolicy;
     procedure SetUseCookies(AValue: Boolean);
+    procedure SetAcceptCompressed(AValue: Boolean);
     procedure SetUserAgent(const AValue: String);
     procedure SetUsername(const AValue: String);
     procedure SetPassword(const AValue: String);
+    procedure SetProxyMode(AValue: THttpProxyMode);
+    procedure SetProxyUrl(const AValue: String);
+    procedure SetAuthScheme(AValue: THttpAuthScheme);
+    procedure SetMaxRedirects(AValue: Integer);
+    procedure SetCachePolicy(AValue: THttpCachePolicy);
     procedure CloseInternetHandle(var AHandle: HINTERNET);
     procedure CloseConnect;
     procedure CloseSession;
@@ -295,7 +330,9 @@ type
     function ReadResponseStatusCode(ARequest: HINTERNET): Integer;
     function ReadRawHeaders(ARequest: HINTERNET): String;
     procedure ReadResponseBody(ARequest: HINTERNET);
-    procedure ExtractCookiesFromResponse(const AHost, APath: String);
+    procedure ExtractCookiesFromResponse(const AHost, APath, AScheme: String);
+    function IsIdempotentMethod(const AMethod: String): Boolean;
+    function GetRetryDelaySeconds(ARequest: HINTERNET): Integer;
   public
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
@@ -315,9 +352,11 @@ type
     function Put(AUrl: String; ABody: TBody): Boolean; overload;
     function Put(AUrl: String; ABody: String): Boolean; overload;
     function Trace(AUrl: String): Boolean;
+    procedure Abort;
     property Cookies: TCookies read FCookies;
     property Response: THttpResponse read FResponse;
     property LastUrl: String read FLastUrl;
+    property Aborted: Boolean read FAbortRequested;
   published
     property Headers: THeaders read FHeaders write FHeaders;
     property UseCookies: Boolean read FUseCookies write SetUseCookies default False;
@@ -327,6 +366,17 @@ type
     property HttpVersion: THttpVersion read FHttpVersion write FHttpVersion default hv1_1;
     property Username: String read FUsername write SetUsername;
     property Password: String read FPassword write SetPassword;
+    property MaxRetries: Integer read FMaxRetries write FMaxRetries default 0;
+    property MaxContentLength: Int64 read FMaxContentLength write FMaxContentLength default 0;
+    property AcceptCompressed: Boolean read FAcceptCompressed write SetAcceptCompressed default True;
+    property ProxyMode: THttpProxyMode read FProxyMode write SetProxyMode default pmSystem;
+    property ProxyUrl: String read FProxyUrl write SetProxyUrl;
+    property AuthScheme: THttpAuthScheme read FAuthScheme write SetAuthScheme default asNone;
+    property AuthToken: String read FAuthToken write FAuthToken;
+    property MaxRedirects: Integer read FMaxRedirects write SetMaxRedirects default 10;
+    property CachePolicy: THttpCachePolicy read FCachePolicy write SetCachePolicy default cpDefault;
+    property OnBeforeRequest: THttpOnBeforeRequest read FOnBeforeRequest write FOnBeforeRequest;
+    property OnAfterResponse: THttpOnAfterResponse read FOnAfterResponse write FOnAfterResponse;
     property OnProgress: THttpOnProgress read FOnProgress write FOnProgress;
     property Timeout: THttpTimeouts read FTimeout write FTimeout;
   end;
@@ -355,7 +405,6 @@ type
     constructor Create(const AURI: String = '');
     function GetFullURI(const AOptionalFields: TURIOptionalFieldsSet = [ofAuthInfo, ofBookmark]): String;
     function GetPathAndParams: String;
-    //
     property Bookmark: String read FBookmark write FBookmark;
     property Document: String read FDocument write FDocument;
     property Host: String read FHost write FHost;
@@ -374,7 +423,7 @@ procedure Register;
 implementation
 
 uses
-  Windows, IOUtils, UrlMon, DateUtils, HttpUtils;
+  Windows, IOUtils, UrlMon, DateUtils, Math, EncdDecd, HttpUtils;
 
 procedure Register;
 begin
@@ -444,8 +493,16 @@ begin
 end;
 
 function THeaders.ToString: String;
+var
+  i: Integer;
 begin
-  Result := DelimitedText;
+  Result := '';
+  for i := 0 to Count - 1 do
+  begin
+    if i > 0 then
+      Result := Result + sLineBreak;
+    Result := Result + Strings[i];
+  end;
 end;
 
 {TBody}
@@ -534,7 +591,7 @@ end;
 
 procedure TUrlEncodedFormBody.Add(AName, AValue: String);
 begin
-  FParts.Values[AName] := AValue;
+  FParts.Add(AName + '=' + AValue);
 end;
 
 constructor TUrlEncodedFormBody.Create;
@@ -660,7 +717,7 @@ begin
     WriteBytes(Stream, Part.FData);
     WriteString(Stream, sLineBreak);
   end;
-  WriteString(Stream, '--' + FBoundary + '--');
+  WriteString(Stream, '--' + FBoundary + '--' + sLineBreak);
 
   Result := Stream;
 end;
@@ -701,6 +758,8 @@ begin
   if CharsetPos > 0 then
     Charset := Copy(Charset, 1, CharsetPos - 1);
   Charset := Trim(Charset);
+  Charset := StringReplace(Charset, '"', '', [rfReplaceAll]);
+  Charset := StringReplace(Charset, '''', '', [rfReplaceAll]);
   if (Charset = 'utf-8') or (Charset = 'utf8') then
     Result := TEncoding.UTF8
   else if (Charset = 'us-ascii') or (Charset = 'ascii') then
@@ -736,6 +795,12 @@ begin
     end;
 end;
 
+procedure THttpResponse.SaveToStream(AStream: TStream);
+begin
+  if Length(FData) > 0 then
+    AStream.WriteBuffer(FData[0], Length(FData));
+end;
+
 {TCookie}
 
 constructor TCookie.Create(const ASetCookie, ADefaultDomain, ADefaultPath: String);
@@ -752,6 +817,12 @@ begin
   FDomain := LowerCase(ADefaultDomain);
   FPath := GetDefaultPath(ADefaultPath);
   FHostOnly := True;
+  FSecure := False;
+  FHttpOnly := False;
+  FSameSite := csNone;
+  FMaxAge := -1;
+  FHasMaxAge := False;
+  FCreatedAt := Now;
 
   while CookieData <> '' do
   begin
@@ -766,13 +837,48 @@ begin
     else if SameText(AttributeName, 'Path') then
       FPath := AttributeValue
     else if SameText(AttributeName, 'Expires') then
-      FHasExpires := TryParseExpires(AttributeValue, FExpires);
+      FHasExpires := TryParseExpires(AttributeValue, FExpires)
+    else if SameText(AttributeName, 'Secure') then
+      FSecure := True
+    else if SameText(AttributeName, 'HttpOnly') then
+      FHttpOnly := True
+    else if SameText(AttributeName, 'SameSite') then
+    begin
+      if SameText(AttributeValue, 'Lax') then
+        FSameSite := csLax
+      else if SameText(AttributeValue, 'Strict') then
+        FSameSite := csStrict
+      else
+        FSameSite := csNone;
+    end
+    else if SameText(AttributeName, 'Max-Age') then
+    begin
+      FMaxAge := StrToIntDef(AttributeValue, -1);
+      FHasMaxAge := FMaxAge >= 0;
+    end;
   end;
 
   if (FDomain <> '') and (FDomain[1] = '.') then
     Delete(FDomain, 1, 1);
   if (FPath = '') or (FPath[1] <> '/') then
     FPath := '/';
+end;
+
+procedure TCookie.AssignFrom(ASource: TCookie);
+begin
+  FName := ASource.FName;
+  FValue := ASource.FValue;
+  FDomain := ASource.FDomain;
+  FPath := ASource.FPath;
+  FExpires := ASource.FExpires;
+  FHasExpires := ASource.FHasExpires;
+  FHostOnly := ASource.FHostOnly;
+  FSecure := ASource.FSecure;
+  FHttpOnly := ASource.FHttpOnly;
+  FSameSite := ASource.FSameSite;
+  FMaxAge := ASource.FMaxAge;
+  FHasMaxAge := ASource.FHasMaxAge;
+  FCreatedAt := ASource.FCreatedAt;
 end;
 
 function TCookie.GetDefaultPath(const ARequestPath: String): String;
@@ -809,7 +915,11 @@ var
 begin
   Result := False;
   DateValue := Trim(AValue);
-  Fetch(DateValue, ',');
+  if Pos(',', DateValue) > 0 then
+  begin
+    Fetch(DateValue, ',');
+    DateValue := Trim(DateValue);
+  end;
   Day := StrToIntDef(Fetch(DateValue, ' '), 0);
   TimePart := Fetch(DateValue, ' ');
   Month := 0;
@@ -835,16 +945,25 @@ end;
 
 function TCookie.IsExpired: Boolean;
 begin
-  Result := FHasExpires and (FExpires <= Now);
+  if FHasMaxAge then
+    Result := (FCreatedAt + FMaxAge / 86400) <= Now
+  else
+    Result := FHasExpires and (FExpires <= Now);
 end;
 
-function TCookie.Matches(const AHost, APath: String): Boolean;
+function TCookie.Matches(const AHost, APath, AScheme: String): Boolean;
 var
   Host: String;
   RequestPath: String;
   DomainMatches: Boolean;
   PathMatches: Boolean;
 begin
+  if FSecure and not SameText(AScheme, 'HTTPS') then
+  begin
+    Result := False;
+    Exit;
+  end;
+
   Host := LowerCase(AHost);
   RequestPath := APath;
   if RequestPath = '' then
@@ -910,19 +1029,31 @@ begin
       Delete(CookieIndex);
 end;
 
-function TCookies.ToRequestHeaders(const AHost, APath: String): String;
+function TCookies.ToRequestHeaders(const AHost, APath, AScheme: String): String;
 var
   Cookie: TCookie;
 begin
   RemoveExpired;
   Result := '';
   for Cookie in Self do
-    if Cookie.Matches(AHost, APath) then
+    if Cookie.Matches(AHost, APath, AScheme) then
     begin
       if Result <> '' then
         Result := Result + '; ';
       Result := Result + Cookie.ToRequestValue;
     end;
+end;
+
+procedure TCookies.AssignFrom(ASource: TCookies);
+var
+  i: Integer;
+begin
+  Clear;
+  for i := 0 to ASource.Count - 1 do
+  begin
+    Add(TCookie.Create('', '', ''));
+    Items[Count - 1].AssignFrom(ASource.Items[i]);
+  end;
 end;
 
 {THttpRequest}
@@ -937,6 +1068,17 @@ begin
   FHttpVersion := hv1_1;
   FUserAgent := 'Mozilla/5.0 (compatible, HttpClient)';
   FAutoRedirect := True;
+  FMaxRetries := 0;
+  FAbortRequested := False;
+  FhRequestActive := nil;
+  FMaxContentLength := 0;
+  FAcceptCompressed := True;
+  FProxyMode := pmSystem;
+  FProxyUrl := '';
+  FAuthScheme := asNone;
+  FAuthToken := '';
+  FMaxRedirects := 10;
+  FCachePolicy := cpDefault;
 end;
 
 function THttpRequest.Delete(AUrl: String; ABody: TBody): Boolean;
@@ -963,6 +1105,7 @@ end;
 
 destructor THttpRequest.Destroy;
 begin
+  Abort;
   CloseSession;
   FResponse.Free;
   FHeaders.Free;
@@ -1006,10 +1149,15 @@ begin
   Result := INTERNET_FLAG_KEEP_CONNECTION;
   if SameText(AURI.Protocol, 'HTTPS') then
     Result := Result or INTERNET_FLAG_SECURE;
-  if not FUseCookies then
-    Result := Result or INTERNET_FLAG_NO_COOKIES;
+  Result := Result or INTERNET_FLAG_NO_COOKIES;
   if not FAutoRedirect then
     Result := Result or INTERNET_FLAG_NO_AUTO_REDIRECT;
+  case FCachePolicy of
+    cpReload:
+      Result := Result or INTERNET_FLAG_RELOAD;
+    cpNoStore:
+      Result := Result or INTERNET_FLAG_NO_CACHE_WRITE;
+  end;
 end;
 
 procedure THttpRequest.ApplyTimeouts(ARequest: HINTERNET);
@@ -1082,14 +1230,37 @@ function THttpRequest.BuildRequestHeaders(const AURI: THttpURI; ABody: TBody; AB
 var
   TmpHead: TStringBuilder;
   CookieHeaders: String;
+  HostHeader: String;
+  AuthHeader: String;
 begin
   TmpHead := TStringBuilder.Create;
   try
-    TmpHead.Append('Host: ' + AURI.Host + sLineBreak);
+    HostHeader := AURI.Host;
+    if AURI.IPVersion = ivIP6 then
+      HostHeader := '[' + HostHeader + ']';
+    if (AURI.Port <> 0) and not ((SameText(AURI.Protocol, 'HTTP') and (AURI.Port = 80)) or
+      (SameText(AURI.Protocol, 'HTTPS') and (AURI.Port = 443))) then
+      HostHeader := HostHeader + ':' + IntToStr(AURI.Port);
+    TmpHead.Append('Host: ' + HostHeader + sLineBreak);
+
+    if FAcceptCompressed then
+      TmpHead.Append('Accept-Encoding: gzip, deflate' + sLineBreak);
+
+    case FAuthScheme of
+      asBearer:
+        if FAuthToken <> '' then
+          TmpHead.Append('Authorization: Bearer ' + FAuthToken + sLineBreak);
+      asBasic:
+        if (FUsername <> '') or (FPassword <> '') then
+        begin
+          AuthHeader := EncodeString(FUsername + ':' + FPassword);
+          TmpHead.Append('Authorization: Basic ' + AuthHeader + sLineBreak);
+        end;
+    end;
 
     if FUseCookies then
     begin
-      CookieHeaders := FCookies.ToRequestHeaders(AURI.Host, AURI.GetPathAndParams);
+      CookieHeaders := FCookies.ToRequestHeaders(AURI.Host, AURI.GetPathAndParams, AURI.Protocol);
       if CookieHeaders <> '' then
         TmpHead.Append('Cookie: ' + CookieHeaders + sLineBreak);
     end;
@@ -1134,7 +1305,7 @@ begin
   BufferLength := 2048;
   Reserved := 0;
   repeat
-    Buffer := StrAlloc(BufferLength);
+    Buffer := StrAlloc(BufferLength div SizeOf(Char) + 1);
     try
       if HttpQueryInfo(ARequest, HTTP_QUERY_RAW_HEADERS_CRLF, Buffer, BufferLength, Reserved) then
       begin
@@ -1169,12 +1340,19 @@ begin
 
     while BytesAvailable > 0 do
     begin
+      if FAbortRequested then
+        raise Exception.Create('Request aborted by the user');
+
       SetLength(Buffer, BytesAvailable);
       if not InternetReadFile(ARequest, @Buffer[0], BytesAvailable, BytesRead) then
         raise Exception.Create(GetErrorDescription(GetLastError));
 
       if BytesRead = 0 then
         Break;
+
+      if (FMaxContentLength > 0) and (TotalRead + BytesRead > FMaxContentLength) then
+        raise Exception.Create('Response body exceeds MaxContentLength (' +
+          IntToStr(FMaxContentLength) + ' bytes)');
 
       Stream.WriteBuffer(Buffer[0], BytesRead);
       TotalRead := TotalRead + BytesRead;
@@ -1197,7 +1375,7 @@ begin
   end;
 end;
 
-procedure THttpRequest.ExtractCookiesFromResponse(const AHost, APath: String);
+procedure THttpRequest.ExtractCookiesFromResponse(const AHost, APath, AScheme: String);
 var
   SetCookie: String;
   CookieList: TStrings;
@@ -1237,18 +1415,33 @@ begin
   CloseConnect;
   CloseInternetHandle(FhInet);
   FSessionUserAgent := '';
+  FSessionProxyMode := pmSystem;
+  FSessionProxyUrl := '';
 end;
 
 procedure THttpRequest.EnsureSession;
 begin
-  if (FhInet <> nil) and (FSessionUserAgent = FUserAgent) then
+  if (FhInet <> nil) and (FSessionUserAgent = FUserAgent) and (FSessionProxyMode = FProxyMode) and
+    (FSessionProxyUrl = FProxyUrl) then
     Exit;
 
   CloseSession;
-  FhInet := InternetOpen(PChar(FUserAgent), INTERNET_OPEN_TYPE_PRECONFIG, nil, nil, 0);
+  case FProxyMode of
+    pmSystem:
+      FhInet := InternetOpen(PChar(FUserAgent), INTERNET_OPEN_TYPE_PRECONFIG, nil, nil, 0);
+    pmDirect:
+      FhInet := InternetOpen(PChar(FUserAgent), INTERNET_OPEN_TYPE_DIRECT, nil, nil, 0);
+    pmExplicit:
+      if FProxyUrl <> '' then
+        FhInet := InternetOpen(PChar(FUserAgent), INTERNET_OPEN_TYPE_PROXY, PChar(FProxyUrl), nil, 0)
+      else
+        FhInet := InternetOpen(PChar(FUserAgent), INTERNET_OPEN_TYPE_PRECONFIG, nil, nil, 0);
+  end;
   if FhInet = nil then
     raise Exception.Create(GetErrorDescription(GetLastError));
   FSessionUserAgent := FUserAgent;
+  FSessionProxyMode := FProxyMode;
+  FSessionProxyUrl := FProxyUrl;
 end;
 
 procedure THttpRequest.EnsureConnect(const AURI: THttpURI);
@@ -1290,74 +1483,165 @@ var
   RequestHeaders: String;
   StatusCode: Integer;
   OpenRequestFlags: Cardinal;
+  Attempt: Integer;
+  RetryDelay: Integer;
+  BodyReleased: Boolean;
+  RedirectCount: Integer;
+  CurrentUrl: String;
+  RedirectUrl: String;
 const
   HTTP_VERSION: array [THttpVersion] of PChar = ('HTTP/1.0', 'HTTP/1.1');
 
 begin
   Result := False;
+  BodyReleased := False;
+  RedirectCount := 0;
+  CurrentUrl := AUrl;
 
   FResponse.Clear;
   FLastUrl := AUrl;
+  FAbortRequested := False;
 
-  IdURI := THttpURI.Create(AUrl);
-  try
-    if not(SameText(IdURI.Protocol, 'HTTP') or SameText(IdURI.Protocol, 'HTTPS')) then
-      raise Exception.Create('Only HTTP and HTTPS URLs are supported');
-    if IdURI.Host = '' then
-      raise Exception.Create('URL host is empty');
+  if Assigned(FOnBeforeRequest) then
+    FOnBeforeRequest(Self, AMethod, AUrl);
 
-    EnsureSession;
-    EnsureConnect(IdURI);
+  while True do
+  begin
+    if FAbortRequested then
+      raise Exception.Create('Request aborted by the user');
 
-    OpenRequestFlags := BuildOpenRequestFlags(IdURI);
-
-    hRequest := HttpOpenRequest(FhConnect, PChar(AMethod), PChar(IdURI.GetPathAndParams), HTTP_VERSION[FHttpVersion],
-      '', nil, OpenRequestFlags, 0);
-    if hRequest = nil then
-    begin
-      CloseConnect;
-      raise Exception.Create(GetErrorDescription(GetLastError));
-    end;
+    IdURI := THttpURI.Create(CurrentUrl);
     try
-      ApplyTimeouts(hRequest);
-      ApplySecurityFlags(hRequest);
+      if not(SameText(IdURI.Protocol, 'HTTP') or SameText(IdURI.Protocol, 'HTTPS')) then
+        raise Exception.Create('Only HTTP and HTTPS URLs are supported');
+      if IdURI.Host = '' then
+        raise Exception.Create('URL host is empty');
 
-      if Assigned(ABody) then
-        BodyStream := ABody.GetStream
-      else
-        BodyStream := TMemoryStream.Create;
-      try
-        RequestHeaders := BuildRequestHeaders(IdURI, ABody, BodyStream);
-        SendRequestToServer(hRequest, RequestHeaders, BodyStream);
-      finally
-        BodyStream.Free;
-      end;
+      EnsureSession;
+      EnsureConnect(IdURI);
 
-      if Assigned(ABody) and ABody.ReleaseAfterSend then
+      OpenRequestFlags := BuildOpenRequestFlags(IdURI);
+
+      Attempt := 0;
+      while True do
       begin
-        ABody.Free;
+        Inc(Attempt);
+
+        if FAbortRequested then
+          raise Exception.Create('Request aborted by the user');
+
+        hRequest := HttpOpenRequest(FhConnect, PChar(AMethod), PChar(IdURI.GetPathAndParams),
+          HTTP_VERSION[FHttpVersion], '', nil, OpenRequestFlags, 0);
+        if hRequest = nil then
+        begin
+          CloseConnect;
+          raise Exception.Create(GetErrorDescription(GetLastError));
+        end;
+        FhRequestActive := hRequest;
+
+        try
+          ApplyTimeouts(hRequest);
+          ApplySecurityFlags(hRequest);
+
+          if Assigned(ABody) then
+            BodyStream := ABody.GetStream
+          else
+            BodyStream := TMemoryStream.Create;
+          try
+            RequestHeaders := BuildRequestHeaders(IdURI, ABody, BodyStream);
+            try
+              SendRequestToServer(hRequest, RequestHeaders, BodyStream);
+            except
+              if Assigned(ABody) and ABody.ReleaseAfterSend then
+              begin
+                ABody.Free;
+                BodyReleased := True;
+              end;
+              raise;
+            end;
+          finally
+            BodyStream.Free;
+          end;
+
+          if Assigned(ABody) and ABody.ReleaseAfterSend and (not BodyReleased) then
+          begin
+            ABody.Free;
+            BodyReleased := True;
+          end;
+
+          StatusCode := ReadResponseStatusCode(hRequest);
+          FResponse.FStatusCode := StatusCode;
+          FResponse.FHeaders.FromRawString(ReadRawHeaders(hRequest));
+
+          if (Attempt <= FMaxRetries) and IsIdempotentMethod(AMethod) and (not BodyReleased) and
+            ((StatusCode >= 500) or (StatusCode = 408)) then
+          begin
+            RetryDelay := GetRetryDelaySeconds(hRequest);
+            FResponse.Clear;
+            if RetryDelay > 0 then
+              Sleep(RetryDelay * 1000);
+            Continue;
+          end;
+
+          if not FAutoRedirect and (StatusCode >= 300) and (StatusCode < 400) then
+          begin
+            Inc(RedirectCount);
+            if RedirectCount > FMaxRedirects then
+              raise Exception.Create('Too many redirects (max ' + IntToStr(FMaxRedirects) + ')');
+
+            RedirectUrl := FResponse.FHeaders.GetFirst('Location');
+            if RedirectUrl = '' then
+              raise Exception.Create('Redirect (' + IntToStr(StatusCode) + ') without Location header');
+
+            if (Pos('://', RedirectUrl) = 0) and not SameText(Copy(RedirectUrl, 1, 2), '//') then
+            begin
+              if Copy(RedirectUrl, 1, 1) = '/' then
+                RedirectUrl := IdURI.Protocol + '://' + IdURI.Host + RedirectUrl
+              else
+                RedirectUrl := IdURI.Protocol + '://' + IdURI.Host + '/' + RedirectUrl;
+            end;
+
+            if (StatusCode = 303) and not SameText(AMethod, 'GET') then
+              AMethod := 'GET';
+
+            CurrentUrl := RedirectUrl;
+            FLastUrl := RedirectUrl;
+            Break;
+          end;
+
+          Result := (StatusCode >= 200) and (StatusCode < 300);
+
+          ReadResponseBody(hRequest);
+
+          ExtractCookiesFromResponse(IdURI.Host, IdURI.GetPathAndParams, IdURI.Protocol);
+          CaptureLastUrl(hRequest, CurrentUrl);
+          Break;
+        except
+          InternetCloseHandle(hRequest);
+          FhRequestActive := nil;
+          CloseConnect;
+          raise;
+        end;
+        InternetCloseHandle(hRequest);
+        FhRequestActive := nil;
       end;
 
-      StatusCode := ReadResponseStatusCode(hRequest);
-      Result := (StatusCode >= 200) and (StatusCode < 300);
-      FResponse.FStatusCode := StatusCode;
+      if not FAutoRedirect and (FResponse.FStatusCode >= 300) and (FResponse.FStatusCode < 400) then
+        Continue;
 
-      FResponse.FHeaders.FromRawString(ReadRawHeaders(hRequest));
-
-      ReadResponseBody(hRequest);
-
-      ExtractCookiesFromResponse(IdURI.Host, IdURI.GetPathAndParams);
-      CaptureLastUrl(hRequest, AUrl);
-    except
-      InternetCloseHandle(hRequest);
-      hRequest := nil;
-      CloseConnect;
-      raise;
+      Break;
+    finally
+      IdURI.Free;
     end;
-    InternetCloseHandle(hRequest);
-  finally
-    IdURI.Free;
   end;
+
+  if Assigned(FOnAfterResponse) then
+    FOnAfterResponse(Self);
+end;
+
+procedure THttpRequest.SetAcceptCompressed(AValue: Boolean);
+begin
+  FAcceptCompressed := AValue;
 end;
 
 procedure THttpRequest.SetUseCookies(AValue: Boolean);
@@ -1389,6 +1673,39 @@ begin
     Exit;
   FPassword := AValue;
   CloseConnect;
+end;
+
+procedure THttpRequest.SetProxyMode(AValue: THttpProxyMode);
+begin
+  if FProxyMode = AValue then
+    Exit;
+  FProxyMode := AValue;
+  CloseSession;
+end;
+
+procedure THttpRequest.SetProxyUrl(const AValue: String);
+begin
+  if FProxyUrl = AValue then
+    Exit;
+  FProxyUrl := AValue;
+  CloseSession;
+end;
+
+procedure THttpRequest.SetAuthScheme(AValue: THttpAuthScheme);
+begin
+  FAuthScheme := AValue;
+end;
+
+procedure THttpRequest.SetMaxRedirects(AValue: Integer);
+begin
+  if AValue < 0 then
+    AValue := 0;
+  FMaxRedirects := AValue;
+end;
+
+procedure THttpRequest.SetCachePolicy(AValue: THttpCachePolicy);
+begin
+  FCachePolicy := AValue;
 end;
 
 function THttpRequest.Patch(AUrl, ABody: String): Boolean;
@@ -1439,6 +1756,55 @@ begin
     Result := Put(AUrl, Body);
   finally
     Body.Free;
+  end;
+end;
+
+procedure THttpRequest.Abort;
+begin
+  FAbortRequested := True;
+  if FhRequestActive <> nil then
+  begin
+    InternetCloseHandle(FhRequestActive);
+    FhRequestActive := nil;
+  end;
+end;
+
+function THttpRequest.IsIdempotentMethod(const AMethod: String): Boolean;
+begin
+  Result := SameText(AMethod, 'GET') or SameText(AMethod, 'HEAD') or SameText(AMethod, 'OPTIONS')
+    or SameText(AMethod, 'DELETE') or SameText(AMethod, 'TRACE') or SameText(AMethod, 'PUT');
+end;
+
+function THttpRequest.GetRetryDelaySeconds(ARequest: HINTERNET): Integer;
+var
+  Buffer: array [0 .. 255] of Char;
+  BufferLength: Cardinal;
+  RetryAfter: String;
+  Delay: Integer;
+  RetryDate: TDateTime;
+  UtcNow: TDateTime;
+  SystemTime: TSystemTime;
+  Reserved: Cardinal;
+begin
+  Result := 0;
+  FillChar(Buffer, SizeOf(Buffer), 0);
+  BufferLength := SizeOf(Buffer);
+  if HttpQueryInfo(ARequest, HTTP_QUERY_RETRY_AFTER, @Buffer[0], BufferLength, Reserved) then
+  begin
+    RetryAfter := Trim(PChar(@Buffer[0]));
+    if RetryAfter <> '' then
+    begin
+      Delay := StrToIntDef(RetryAfter, -1);
+      if Delay >= 0 then
+        Result := Delay
+      else if ParseHttpDate(RetryAfter, RetryDate) then
+      begin
+        // RetryDate is UTC; compute UTC now without TTimeZone (D2010 compatible).
+        GetSystemTime(SystemTime);
+        UtcNow := SystemTimeToDateTime(SystemTime);
+        Result := Max(0, SecondsBetween(RetryDate, UtcNow));
+      end;
+    end;
   end;
 end;
 
@@ -1529,11 +1895,10 @@ begin
     end;
     if TryStrToInt(LBuffer, Port) then
       FPort := Port;
-    // Get the path
     LTokenPos := RPos('/', LURI, -1);
     if LTokenPos > 0 then
     begin
-      FPath := '/' + Copy(LURI, 1, LTokenPos);
+      FPath := Copy(LURI, 1, LTokenPos);
       Delete(LURI, 1, LTokenPos);
     end
     else

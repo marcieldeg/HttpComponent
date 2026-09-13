@@ -46,6 +46,7 @@
 				<MainSource>MainSource</MainSource>
 			</DelphiCompile>
 			<DCCReference Include="rtl.dcp"/>
+			<DCCReference Include="soaprtl.dcp"/>
 			<DCCReference Include="HttpClasses.pas"/>
 			<DCCReference Include="HttpUtils.pas"/>
 			<BuildConfiguration Include="Base">
