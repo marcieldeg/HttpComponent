@@ -1,6 +1,8 @@
 # HttpComponent
 Delphi component wrapper for WinInet library. Written in Delphi 2010.
 
+**Full documentation:** [DOCUMENTATION.md](DOCUMENTATION.md)
+
 ## Packages
 
 The component is split into two packages:
